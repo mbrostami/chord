@@ -2,6 +2,7 @@ package server
 
 import (
 	"context"
+	"crypto/sha256"
 	"fmt"
 	"net"
 	"strconv"
@@ -19,21 +20,31 @@ type ChordServer struct {
 
 // GetPredecessor get predecessor node
 func (s *ChordServer) GetPredecessor(ctx context.Context, empty *empty.Empty) (*pb.Node, error) {
-	var key []byte
-	var ip string
-	var port int32
+	node := &pb.Node{}
 	if s.Node.Predecessor != nil {
-		key = s.Node.Predecessor.Identifier[:]
-		ip = s.Node.Predecessor.IP
-		port = int32(s.Node.Predecessor.Port)
+		node.IP = s.Node.Predecessor.IP
+		node.Key = s.Node.Predecessor.Identifier[:]
+		node.Port = int32(s.Node.Predecessor.Port)
+	} else {
+		node.IP = s.Node.IP
+		node.Key = s.Node.Identifier[:]
+		node.Port = int32(s.Node.Port)
 	}
-	node := &pb.Node{
-		IP:   ip,
-		Port: port,
-		Key:  key,
-	}
-	fmt.Printf("grpc Server: GetPredecessor: %+v \n", s.Node.Predecessor)
+	fmt.Printf("grpc Server: GetPredecessor: %+v \n", node)
 	return node, nil
+}
+
+// FindSuccessor get closest node to the given key
+func (s *ChordServer) FindSuccessor(ctx context.Context, lookup *pb.Lookup) (*pb.Node, error) {
+	var id [sha256.Size]byte
+	copy(id[:], lookup.Key[:sha256.Size])
+	successor := s.Node.FindSuccessor(id)
+	targetNode := &pb.Node{
+		IP:   successor.IP,
+		Port: int32(successor.Port),
+		Key:  successor.Identifier[:],
+	}
+	return targetNode, nil
 }
 
 // GetSuccessor(context.Context, *empty.Empty) (*Node, error)

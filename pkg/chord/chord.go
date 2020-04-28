@@ -8,6 +8,7 @@ import (
 
 	"github.com/golang/protobuf/ptypes/empty"
 	pb "github.com/mbrostami/chord/internal/grpc"
+	"github.com/mbrostami/chord/pkg/helpers"
 	"google.golang.org/grpc"
 )
 
@@ -32,6 +33,56 @@ func NewNode(ip string, port int) *Node {
 	}
 }
 
+// FindSuccessor find the closest node to the given identifier
+func (n *Node) FindSuccessor(identifier [sha256.Size]byte) *Node {
+	if len(n.FingerTable) == 0 {
+		fmt.Printf("FindSuccessor: fingerTable has no successor. Looking for %x, returned self: %x \n", identifier, n.Identifier)
+		return n // if fingertable is empty, return self
+	}
+	successorNode := n.FingerTable[1]
+	fmt.Printf("FindSuccessor: start looking for key %x, localid: %+v \n", identifier, n.FingerTable)
+	// id ∈ (n, successor]
+	if helpers.OpLTE(identifier, successorNode.Identifier) {
+		if helpers.OpGT(identifier, n.Identifier) {
+			fmt.Printf("FindSuccessor: found local successor hash: %x \n", successorNode.Identifier)
+			return successorNode
+		}
+	}
+	nextNode := n.closestPrecedingNode(identifier)
+	return n.FindRemoteSuccessor(nextNode, identifier)
+}
+
+func (n *Node) closestPrecedingNode(identifier [sha256.Size]byte) *Node {
+	for m := len(n.FingerTable); m > 0; m-- {
+		// finger[i] ∈ (n, id)
+		if helpers.OpGT(n.FingerTable[m].Identifier, n.Identifier) && helpers.OpLT(n.FingerTable[m].Identifier, identifier) {
+			fmt.Printf("Lookup: local finger[%d] hash: %x \n", m, n.FingerTable[m].Identifier)
+			return n.FingerTable[m]
+		}
+	}
+	fmt.Print("Lookup: local finger empty \n")
+	// FIXME prevent infinite call
+	return n
+}
+
+// FindRemoteSuccessor find closest node to the given key in remote node
+func (n *Node) FindRemoteSuccessor(remote *Node, key [sha256.Size]byte) *Node {
+	client := n.Connect(remote)
+	successor, err := client.FindSuccessor(context.Background(), &pb.Lookup{Key: key[:]})
+	chordNode := &Node{}
+	if err != nil {
+		fmt.Printf("There is no remote successor from: %s:%d \n", remote.IP, remote.Port)
+		return chordNode
+	}
+	var id [sha256.Size]byte
+	copy(id[:], successor.Key[:sha256.Size])
+	chordNode.Identifier = id
+	chordNode.IP = successor.IP
+	chordNode.Port = int(successor.Port)
+	fmt.Printf("Remote node has found successor %+v! \n", successor)
+	return chordNode
+}
+
 // Join throw first node
 func (n *Node) Join(remote *Node) {
 	client := n.Connect(remote)
@@ -44,7 +95,6 @@ func (n *Node) Join(remote *Node) {
 		fmt.Printf("Remote node has no predecessor! \n")
 		// remote is the only node
 		n.Predecessor = remote
-		n.Successor = remote
 	} else {
 		var id [sha256.Size]byte
 		copy(id[:], predecessor.Key[:sha256.Size])
@@ -55,6 +105,7 @@ func (n *Node) Join(remote *Node) {
 		}
 		fmt.Printf("Remote node has predecessor %+v! \n", predecessor)
 	}
+	n.Successor = remote
 	n.FingerTable[1] = remote
 }
 
