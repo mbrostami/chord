@@ -8,6 +8,7 @@ import (
 	"strconv"
 
 	"github.com/golang/protobuf/ptypes/empty"
+	"github.com/golang/protobuf/ptypes/wrappers"
 	pb "github.com/mbrostami/chord/internal/grpc"
 	"github.com/mbrostami/chord/pkg/chord"
 	"google.golang.org/grpc"
@@ -16,6 +17,31 @@ import (
 type ChordServer struct {
 	pb.UnimplementedChordServer
 	Node *chord.Node
+}
+
+// GetSuccessor get successor node
+func (s *ChordServer) GetSuccessor(ctx context.Context, empty *empty.Empty) (*pb.Node, error) {
+	node := &pb.Node{}
+	if s.Node.Successor != nil {
+		node.IP = s.Node.Successor.IP
+		node.Key = s.Node.Successor.Identifier[:]
+		node.Port = int32(s.Node.Successor.Port)
+	} else {
+		node.IP = s.Node.IP
+		node.Key = s.Node.Identifier[:]
+		node.Port = int32(s.Node.Port)
+	}
+	// fmt.Printf("grpc Server: GetSuccessor: %s:%d \n", node.IP, node.Port)
+	return node, nil
+}
+
+// Notify update predecessor
+// is being called periodically
+func (s *ChordServer) Notify(ctx context.Context, n *pb.Node) (*wrappers.BoolValue, error) {
+	node := chord.NewNode(n.IP, int(n.Port)) // make node struct and calculate identifier
+	result := &wrappers.BoolValue{}
+	result.Value = s.Node.Notify(node)
+	return result, nil
 }
 
 // GetPredecessor get predecessor node
@@ -30,7 +56,7 @@ func (s *ChordServer) GetPredecessor(ctx context.Context, empty *empty.Empty) (*
 		node.Key = s.Node.Identifier[:]
 		node.Port = int32(s.Node.Port)
 	}
-	fmt.Printf("grpc Server: GetPredecessor: %+v \n", node)
+	// fmt.Printf("grpc Server: GetPredecessor: %s:%d \n", node.IP, node.Port)
 	return node, nil
 }
 
@@ -38,7 +64,8 @@ func (s *ChordServer) GetPredecessor(ctx context.Context, empty *empty.Empty) (*
 func (s *ChordServer) FindSuccessor(ctx context.Context, lookup *pb.Lookup) (*pb.Node, error) {
 	var id [sha256.Size]byte
 	copy(id[:], lookup.Key[:sha256.Size])
-	successor := s.Node.FindSuccessor(id)
+	cNode := chord.NewNode(lookup.Node.IP, int(lookup.Node.Port))
+	successor := s.Node.FindSuccessor(id, cNode)
 	targetNode := &pb.Node{
 		IP:   successor.IP,
 		Port: int32(successor.Port),

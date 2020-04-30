@@ -3,6 +3,7 @@ package main
 import (
 	"flag"
 	"fmt"
+	"time"
 
 	"github.com/mbrostami/chord/pkg/chord"
 	"github.com/mbrostami/chord/pkg/server"
@@ -25,5 +26,29 @@ func main() {
 		node.Join(successor)
 	}
 
+	go func() {
+		for {
+			node.FixFingers() // every 5 seconds
+			time.Sleep(1 * time.Second)
+		}
+	}()
+	go func() {
+		for {
+			node.CheckPredecessor()
+			time.Sleep(1 * time.Second)
+		}
+	}()
+	go func() {
+		for {
+			node.Stabilize()
+			time.Sleep(1 * time.Second)
+		}
+	}()
+	go func() {
+		for {
+			node.Debug()
+			time.Sleep(5 * time.Second)
+		}
+	}()
 	server.NewChordServer(node.IP, node.Port, node)
 }
