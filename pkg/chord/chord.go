@@ -34,7 +34,7 @@ type Node struct {
 // NewNode create new node
 func NewNode(ip string, port int) *Node {
 	id := sha256.Sum256([]byte(ip + ":" + strconv.FormatInt(int64(port), 10)))
-	return &Node{
+	newNode := &Node{
 		Identifier:       id,
 		IP:               ip,
 		Port:             port,
@@ -43,62 +43,63 @@ func NewNode(ip string, port int) *Node {
 		M:                sha256.Size * 8,
 		connPool:         make(map[string]*grpc.ClientConn),
 	}
+	newNode.Successor = newNode
+	newNode.Predecessor = nil
+	return newNode
 }
 
-// FindSuccessor find the closest node to the given identifier
-func (n *Node) FindSuccessor(identifier [sha256.Size]byte, caller *Node) *Node {
-	if n.Successor == nil { // bootstrap node
-		if n.Predecessor == nil {
-			return n
-		}
-		if n.Predecessor.Identifier != caller.Identifier && caller.Identifier != n.Identifier {
-			if helpers.OpLT(n.Predecessor.Identifier, caller.Identifier) {
-				n.Successor = n.Predecessor
-				n.Predecessor = caller
-				return n.Successor // don't return same node to the caller
-			}
-			n.Successor = caller
-			return n.Predecessor // don't return same node to the caller
-		}
-		return n
+// Join throw first node
+func (n *Node) Join(remote *Node) {
+	client := n.Connect(remote)
+	successor, err := client.FindSuccessor(context.Background(), &pb.Lookup{Key: n.Identifier[:]})
+	if err != nil {
+		fmt.Printf("There is no predecessor from: %s:%d - %v - %v\n", remote.IP, remote.Port, successor, err)
+		return
 	}
-	// fmt.Printf("FindSuccessor: start looking for key %x \n", identifier)
-	// id ∈ (n, successor]
-	if helpers.OpLTE(identifier, n.Successor.Identifier) {
-		if helpers.OpGT(identifier, n.Identifier) {
-			//fmt.Printf("FindSuccessor: found local successor hash: %x \n", n.Successor.Identifier)
-			return n.Successor
-		}
-	}
-	if n.Successor.Identifier == n.Identifier {
-		return n
-	}
-	nextNode := n.closestPrecedingNode(identifier)
-	return n.FindRemoteSuccessor(nextNode, identifier)
+	fmt.Printf("Join: got successor %s:%d! \n", successor.IP, successor.Port)
+	n.Predecessor = nil
+	n.Successor = NewNode(successor.IP, int(successor.Port))
+
+	n.mutex.Lock()
+	n.FingerTable[1] = n.Successor
+	n.mutex.Unlock()
+	n.RemoteSuccessorNotify() // update new successor's predecessor
 }
 
 // Notify update predecessor
 // is being called periodically by predecessor or new node
 func (n *Node) Notify(node *Node) bool {
 	// (n.predecessor is nil or node ∈ (n.predecessor, n))
-	if n.Predecessor == nil || (helpers.OpGT(node.Identifier, n.Predecessor.Identifier) && helpers.OpLT(node.Identifier, n.Identifier)) {
+	if n.Predecessor == nil {
+		n.Predecessor = node
+		if n.Successor.Identifier == n.Identifier { // bootstrap node
+			n.Successor = node
+			n.RemoteSuccessorNotify() // notify successor
+		}
+		return true
+	}
+	if helpers.Between(node.Identifier, n.Predecessor.Identifier, n.Identifier) {
 		n.Predecessor = node
 		return true
 	}
-	// If node = zzz and bigger than xxx && xxx also bigger than bbb then zzz is new predecessor
-	if helpers.OpGT(node.Identifier, n.Predecessor.Identifier) && helpers.OpGT(n.Predecessor.Identifier, n.Identifier) {
-		n.Predecessor = node
-		return true
-	}
-	// If node = aaa and less than xxx && xxx also bigger than bbb and aaa also is less than bbb then zzz is new predecessor
-	if helpers.OpLT(node.Identifier, n.Predecessor.Identifier) &&
-		helpers.OpGT(n.Predecessor.Identifier, n.Identifier) &&
-		helpers.OpLT(node.Identifier, n.Identifier) {
-		n.Predecessor = node
-		return true
-	}
-
 	return false
+}
+
+// FindSuccessor find the closest node to the given identifier
+func (n *Node) FindSuccessor(identifier [sha256.Size]byte) *Node {
+	// fmt.Printf("FindSuccessor: start looking for key %x \n", identifier)
+	if n.Successor.Identifier == n.Identifier {
+		return n
+	}
+	// id ∈ (n, successor]
+	if helpers.BetweenR(identifier, n.Identifier, n.Successor.Identifier) {
+		return n.Successor
+	}
+	nextNode := n.closestPrecedingNode(identifier)
+	if nextNode.Identifier == n.Identifier { // current node is the only node in figer table
+		return nextNode
+	}
+	return n.FindRemoteSuccessor(nextNode, identifier)
 }
 
 func (n *Node) closestPrecedingNode(identifier [sha256.Size]byte) *Node {
@@ -107,23 +108,17 @@ func (n *Node) closestPrecedingNode(identifier [sha256.Size]byte) *Node {
 	for m := len(n.FingerTable); m > 0; m-- {
 		// finger[i] ∈ (n, id)
 		//fmt.Printf("closestPrecedingNode: checking figertable[%d] => id, %x", m, n.FingerTable[m].Identifier)
-		if helpers.OpGT(n.FingerTable[m].Identifier, n.Identifier) && helpers.OpLT(n.FingerTable[m].Identifier, identifier) {
-			//fmt.Printf("Lookup: local finger[%d] hash: %s:%d \n", m, n.FingerTable[m].IP, n.FingerTable[m].Port)
+		if helpers.Between(n.FingerTable[m].Identifier, n.Identifier, identifier) {
 			return n.FingerTable[m]
 		}
 	}
-	return n.Successor
+	return n
 }
 
 // FindRemoteSuccessor find closest node to the given key in remote node
 func (n *Node) FindRemoteSuccessor(remote *Node, key [sha256.Size]byte) *Node {
 	client := n.Connect(remote)
-	node := &pb.Node{
-		IP:   n.IP,
-		Port: int32(n.Port),
-		Key:  n.Identifier[:],
-	}
-	successor, err := client.FindSuccessor(context.Background(), &pb.Lookup{Key: key[:], Node: node})
+	successor, err := client.FindSuccessor(context.Background(), &pb.Lookup{Key: key[:]})
 	chordNode := NewNode(successor.IP, int(successor.Port))
 	if err != nil {
 		fmt.Printf("There is no remote successor from: %s:%d \n", remote.IP, remote.Port)
@@ -135,8 +130,9 @@ func (n *Node) FindRemoteSuccessor(remote *Node, key [sha256.Size]byte) *Node {
 
 // GetRemotePredecessor get remote nodes predecessor
 func (n *Node) GetRemotePredecessor(remote *Node) *Node {
+	// prepare kind of timeout to replace disconnected nodes
 	client := n.Connect(remote)
-	predecessor, err := client.GetPredecessor(context.Background(), new(empty.Empty))
+	predecessor, err := client.GetPredecessor(context.Background(), new(empty.Empty), grpc.WaitForReady(true))
 	if err != nil {
 		fmt.Printf("There is no remote predecessor ERROR: %+v \n", err)
 	}
@@ -155,7 +151,7 @@ func (n *Node) RemoteSuccessorNotify() (bool, error) {
 	node := &pb.Node{
 		IP:   n.IP,
 		Port: int32(n.Port),
-		Key:  n.Identifier[:],
+		Key:  n.Identifier[:], // FIXME remove identifier from grpc
 	}
 	result, err := client.Notify(context.Background(), node)
 	if err != nil {
@@ -166,59 +162,23 @@ func (n *Node) RemoteSuccessorNotify() (bool, error) {
 	return result.Value, err
 }
 
-// Join throw first node
-func (n *Node) Join(remote *Node) {
-	client := n.Connect(remote)
-	successor, err := client.GetSuccessor(context.Background(), new(empty.Empty))
-	if err != nil {
-		fmt.Printf("There is no predecessor from: %s:%d - %v - %v\n", remote.IP, remote.Port, successor, err)
-		return
-	}
-	fmt.Printf("Join: got successor %s:%d! \n", successor.IP, successor.Port)
-	n.Predecessor = nil
-	n.Successor = NewNode(successor.IP, int(successor.Port))
-
-	n.mutex.Lock()
-	n.FingerTable[1] = n.Successor
-	n.mutex.Unlock()
-	n.RemoteSuccessorNotify() // update new successor's predecessor
-}
-
 // Stabilize keep successor and predecessor updated
 // Runs periodically
 func (n *Node) Stabilize() {
 	// If node has no successor yet, ignore
 	if n.Successor == nil {
-		n.mutex.RLock()
-		imSuccessor := n.FingerTable[1]
-		n.mutex.RUnlock()
-		if imSuccessor != nil && imSuccessor.Identifier != n.Identifier {
-			n.Successor = imSuccessor
-			fmt.Printf("Join: got successor 11 %s:%d! \n", imSuccessor.IP, imSuccessor.Port)
-		} else {
-			return
-		}
+		return
 	}
 	remotePredecessor := n.GetRemotePredecessor(n.Successor)
 	if remotePredecessor.Identifier == n.Identifier {
 		return
 	}
-	if helpers.OpLT(n.Identifier, n.Successor.Identifier) {
-		if helpers.OpGT(remotePredecessor.Identifier, n.Identifier) && helpers.OpLT(remotePredecessor.Identifier, n.Successor.Identifier) {
-			n.Successor = remotePredecessor // change successor
-			fmt.Printf("Join: got successor re11 %s:%d! \n", remotePredecessor.IP, remotePredecessor.Port)
-			n.RemoteSuccessorNotify() // update remote successor to update it's predecessor
-		}
-	} else if helpers.OpGT(n.Identifier, n.Successor.Identifier) {
-		if helpers.OpGT(remotePredecessor.Identifier, n.Identifier) {
-			n.Successor = remotePredecessor // change successor
-			fmt.Printf("Join: got successor re22 %s:%d! \n", remotePredecessor.IP, remotePredecessor.Port)
-			n.RemoteSuccessorNotify() // update remote successor to update it's predecessor
-		} else if helpers.OpLT(remotePredecessor.Identifier, n.Successor.Identifier) && helpers.OpLT(remotePredecessor.Identifier, n.Successor.Identifier) {
-			n.Successor = remotePredecessor // change successor
-			fmt.Printf("Join: got successor re33 %s:%d! \n", remotePredecessor.IP, remotePredecessor.Port)
-			n.RemoteSuccessorNotify() // update remote successor to update it's predecessor
-		}
+	// means successor's predececcor is changed
+
+	// if pred(succ) ∈ (n, succ)
+	if helpers.BetweenR(remotePredecessor.Identifier, n.Identifier, n.Successor.Identifier) {
+		n.Successor = remotePredecessor
+		n.RemoteSuccessorNotify()
 	}
 }
 
@@ -226,7 +186,7 @@ func (n *Node) Stabilize() {
 // Runs periodically
 func (n *Node) CheckPredecessor() {
 	if n.Predecessor != nil {
-		if !n.Ping(n.Predecessor) {
+		if !n.Ping(n.Predecessor) { // predecessor disconnected !
 			n.Predecessor = nil // set nil to be able to update predecessor by notify
 		}
 	}
@@ -235,6 +195,9 @@ func (n *Node) CheckPredecessor() {
 // FixFingers refreshes finger table entities
 // Runs periodically
 func (n *Node) FixFingers() {
+	if n.Successor == nil {
+		return
+	}
 	n.FingerFixerIndex++
 	if n.FingerFixerIndex > 5 {
 		n.FingerFixerIndex = 1
@@ -282,7 +245,7 @@ func (n *Node) FixFingers() {
 	}
 	var identifier [sha256.Size]byte
 	copy(identifier[:sha256.Size], bytes[:sha256.Size])
-	findSuccessor := n.FindSuccessor(identifier, n)
+	findSuccessor := n.FindSuccessor(identifier)
 	n.mutex.Lock()
 	n.FingerTable[n.FingerFixerIndex] = findSuccessor
 	n.mutex.Unlock()

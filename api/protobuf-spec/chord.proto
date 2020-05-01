@@ -18,7 +18,6 @@ service Chord {
 
 message Lookup {
   bytes Key = 1;
-  Node Node = 2;
 }
 
 message Node {

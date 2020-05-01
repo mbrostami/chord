@@ -64,8 +64,7 @@ func (s *ChordServer) GetPredecessor(ctx context.Context, empty *empty.Empty) (*
 func (s *ChordServer) FindSuccessor(ctx context.Context, lookup *pb.Lookup) (*pb.Node, error) {
 	var id [sha256.Size]byte
 	copy(id[:], lookup.Key[:sha256.Size])
-	cNode := chord.NewNode(lookup.Node.IP, int(lookup.Node.Port))
-	successor := s.Node.FindSuccessor(id, cNode)
+	successor := s.Node.FindSuccessor(id)
 	targetNode := &pb.Node{
 		IP:   successor.IP,
 		Port: int32(successor.Port),
