@@ -10,6 +10,7 @@ import (
 )
 
 func main() {
+	verbose := flag.Bool("v", false, "verbose")
 	ip := flag.String("ip", "127.0.0.1", "ip address")
 	port := flag.Int("port", 0, "port number")
 	flag.Parse()
@@ -44,11 +45,13 @@ func main() {
 			time.Sleep(1 * time.Second)
 		}
 	}()
-	go func() {
-		for {
-			chordRing.Debug()
-			time.Sleep(5 * time.Second)
-		}
-	}()
+	if *verbose {
+		go func() {
+			for {
+				chordRing.Debug()
+				time.Sleep(5 * time.Second)
+			}
+		}()
+	}
 	server.NewChordServer(chordRing)
 }

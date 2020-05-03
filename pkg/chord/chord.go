@@ -18,12 +18,14 @@ import (
 
 // MSIZE is the number of bits in identifier
 // in fact only O(log n) are distinct
-// ref D
+// ref D - Theorem IV.2
 const MSIZE int = sha256.Size * 8
 
-// RSIZE is the number of records in successor list (max = (log n))
-// ref E.3
-const RSIZE int = 5
+// RSIZE is the number of records in successor list
+// could be (log n) refer to Theorem IV.5
+// Increasing r makes the system more robust
+// ref E.3 - Theorem IV.5
+const RSIZE int = sha256.Size // 32
 
 // Chord chord ring
 // ref B
@@ -42,14 +44,15 @@ type Chord struct {
 }
 
 // NewChord create new node
+// ref E.1
 func NewChord(ip string, port int) *Chord {
 	chord := &Chord{
 		SuccessorList:    make(map[int]*Node),
 		FingerTable:      make(map[int]*Node),
 		FingerFixerIndex: 0,
+		connectionPool:   make(map[string]*grpc.ClientConn),
 		m:                MSIZE,
 		r:                RSIZE,
-		connectionPool:   make(map[string]*grpc.ClientConn),
 		fingetTableDebug: make(map[int]string),
 	}
 
@@ -63,6 +66,7 @@ func NewChord(ip string, port int) *Chord {
 }
 
 // Join throw first node
+// ref E.1
 func (c *Chord) Join(remote *Node) {
 	client := c.Connect(remote)
 	successor, err := client.FindSuccessor(context.Background(), &pb.Lookup{Key: c.Node.Identifier[:]})
@@ -82,11 +86,13 @@ func (c *Chord) Join(remote *Node) {
 
 // Notify update predecessor
 // is being called periodically by predecessor or new node
+// ref E.1
 func (c *Chord) Notify(node *Node) bool {
 	// (c.predecessor is nil or node ∈ (c.predecessor, n))
 	if c.Predecessor == nil {
 		c.Predecessor = node
-		if c.Successor.Identifier == c.Node.Identifier { // bootstrap node
+		// First node in the network has itself as successor
+		if c.Successor.Identifier == c.Node.Identifier {
 			c.Successor = node
 			c.RemoteSuccessorNotify() // notify successor
 		}
@@ -117,17 +123,40 @@ func (c *Chord) FindSuccessor(identifier [sha256.Size]byte) *Node {
 	return c.FindRemoteSuccessor(nextNode, identifier)
 }
 
+// TODO E.3
 // ref D
 func (c *Chord) closestPrecedingNode(identifier [sha256.Size]byte) *Node {
 	c.mutex.RLock()
 	defer c.mutex.RUnlock()
+	var closesNodeInFingerTable *Node
 	for m := len(c.FingerTable); m > 0; m-- {
 		// finger[i] ∈ (n, id)
-		// fmt.Printf("closestPrecedingNode: checking figertable[%d] => id, %x", m, c.FingerTable[m].Identifier)
 		if helpers.Between(c.FingerTable[m].Identifier, c.Node.Identifier, identifier) {
-			return c.FingerTable[m]
+			closesNodeInFingerTable = c.FingerTable[m]
+			break
 		}
 	}
+
+	// ref E.3 - modified version of closestPrecedingNode will also check the successor list
+	// to find closest node to the identifier
+	for i := 0; i < len(c.SuccessorList); i++ {
+		// successorList[i] ∈ (fingerTable[k], id)
+		// if successor item is closer to identifier than the found fingertable item, then return successor item
+		if closesNodeInFingerTable != nil {
+			if helpers.BetweenR(c.SuccessorList[i].Identifier, closesNodeInFingerTable.Identifier, identifier) {
+				return c.SuccessorList[i]
+			}
+		} else {
+			// successorList[i] ∈ (n, id)
+			if helpers.BetweenR(c.SuccessorList[i].Identifier, c.Node.Identifier, identifier) {
+				return c.SuccessorList[i]
+			}
+		}
+	}
+	if closesNodeInFingerTable != nil {
+		return closesNodeInFingerTable
+	}
+
 	return &c.Node
 }
 
@@ -188,6 +217,7 @@ func (c *Chord) prepareSuccessorList(pbNodes *pb.Nodes) map[int]*Node {
 	nodes[0] = c.Successor // replace first item with successor itself
 	// fmt.Printf("successorList starting to update \n")
 	index := 1
+	// TODO mutex read lock for successorlist
 	for i := 0; i < len(successorList.Nodes); i++ {
 		if len(nodes) >= c.r { // prevent overloading successorlist (max(r)=(log N)) ref E.3
 			break
