@@ -17,24 +17,28 @@ import (
 )
 
 // MSIZE is the number of bits in identifier
+// in fact only O(log n) are distinct
+// ref D
 const MSIZE int = sha256.Size * 8
 
-// RSIZE is the number of records in successor list
+// RSIZE is the number of records in successor list (max = (log n))
 // ref E.3
 const RSIZE int = 5
 
 // Chord chord ring
+// ref B
 type Chord struct {
 	Successor        *Node // next node
 	Predecessor      *Node // previous node
 	SuccessorList    map[int]*Node
-	FingerTable      map[int]*Node
-	FingerFixerIndex int // to use in fixFinger
+	FingerTable      map[int]*Node // ref D
+	FingerFixerIndex int           // to use in fixFinger
 	connectionPool   map[string]*grpc.ClientConn
 	mutex            sync.RWMutex
-	m                int // number of bits in identifier
+	m                int // ref D - MSIZE
 	r                int // ref E.3 - RSIZE
 	Node             Node
+	fingetTableDebug map[int]string // FIXME remove this one, it's for debug
 }
 
 // NewChord create new node
@@ -46,6 +50,7 @@ func NewChord(ip string, port int) *Chord {
 		m:                MSIZE,
 		r:                RSIZE,
 		connectionPool:   make(map[string]*grpc.ClientConn),
+		fingetTableDebug: make(map[int]string),
 	}
 
 	chord.Node.IP = ip
@@ -95,6 +100,7 @@ func (c *Chord) Notify(node *Node) bool {
 }
 
 // FindSuccessor find the closest node to the given identifier
+// ref D
 func (c *Chord) FindSuccessor(identifier [sha256.Size]byte) *Node {
 	// fmt.Printf("FindSuccessor: start looking for key %x \n", identifier)
 	if c.Successor.Identifier == c.Node.Identifier {
@@ -111,12 +117,13 @@ func (c *Chord) FindSuccessor(identifier [sha256.Size]byte) *Node {
 	return c.FindRemoteSuccessor(nextNode, identifier)
 }
 
+// ref D
 func (c *Chord) closestPrecedingNode(identifier [sha256.Size]byte) *Node {
 	c.mutex.RLock()
 	defer c.mutex.RUnlock()
 	for m := len(c.FingerTable); m > 0; m-- {
 		// finger[i] ∈ (n, id)
-		//fmt.Printf("closestPrecedingNode: checking figertable[%d] => id, %x", m, c.FingerTable[m].Identifier)
+		// fmt.Printf("closestPrecedingNode: checking figertable[%d] => id, %x", m, c.FingerTable[m].Identifier)
 		if helpers.Between(c.FingerTable[m].Identifier, c.Node.Identifier, identifier) {
 			return c.FingerTable[m]
 		}
@@ -275,7 +282,7 @@ func (c *Chord) CheckPredecessor() {
 
 // FixFingers refreshes finger table entities
 // Runs periodically
-// ref E.1
+// ref D - E.1 - finger[k] = (n + 2 ** k-1) Mod M
 func (c *Chord) FixFingers() {
 	if c.Successor == nil {
 		return
@@ -284,7 +291,6 @@ func (c *Chord) FixFingers() {
 	if c.FingerFixerIndex > c.m {
 		c.FingerFixerIndex = 1
 	}
-	// finger[k] = (n + 2 ** k-1) Mod M
 
 	meint := new(big.Int)
 	meint.SetBytes(c.Node.Identifier[:])
@@ -328,10 +334,13 @@ func (c *Chord) FixFingers() {
 	var identifier [sha256.Size]byte
 	copy(identifier[:sha256.Size], bytes[:sha256.Size])
 	findSuccessor := c.FindSuccessor(identifier)
+	stringidentifier := fmt.Sprintf("%x", identifier)
+	c.fingetTableDebug[c.FingerFixerIndex] = stringidentifier
 	c.mutex.Lock()
 	c.FingerTable[c.FingerFixerIndex] = findSuccessor
 	c.mutex.Unlock()
-	if c.FingerFixerIndex == 1 { // first item in fingertable is immediate successor
+	// first item in fingertable is immediate successor - ref D
+	if c.FingerFixerIndex == 1 {
 		c.mutex.RLock()
 		c.Successor = c.FingerTable[c.FingerFixerIndex]
 		c.mutex.RUnlock()
@@ -344,14 +353,17 @@ func (c *Chord) FixFingers() {
 // Runs periodically
 func (c *Chord) Debug() {
 	fmt.Printf("Current Node: %s:%d:%x\n", c.Node.IP, c.Node.Port, c.Node.Identifier)
-	if c.Successor != nil {
-		fmt.Printf("Current Node Successor: %s:%d:%x\n", c.Successor.IP, c.Successor.Port, c.Successor.Identifier)
-	}
-	if c.Predecessor != nil {
-		fmt.Printf("Current Node Predecessor: %s:%d:%x\n", c.Predecessor.IP, c.Predecessor.Port, c.Predecessor.Identifier)
-	}
-	for i := 0; i < len(c.SuccessorList); i++ {
-		fmt.Printf("successorList %d: %x\n", i, c.SuccessorList[i].Identifier)
+	// if c.Successor != nil {
+	// 	fmt.Printf("Current Node Successor: %s:%d:%x\n", c.Successor.IP, c.Successor.Port, c.Successor.Identifier)
+	// }
+	// if c.Predecessor != nil {
+	// 	fmt.Printf("Current Node Predecessor: %s:%d:%x\n", c.Predecessor.IP, c.Predecessor.Port, c.Predecessor.Identifier)
+	// }
+	// for i := 0; i < len(c.SuccessorList); i++ {
+	// 	fmt.Printf("successorList %d: %x\n", i, c.SuccessorList[i].Identifier)
+	// }
+	for i := 1; i < len(c.FingerTable); i++ {
+		fmt.Printf("FingerTable %d: %s, %x\n", i, c.fingetTableDebug[i], c.FingerTable[i].Identifier)
 	}
 	fmt.Print("\n")
 }
