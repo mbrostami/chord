@@ -10,10 +10,11 @@ service Chord {
   rpc GetSuccessor(google.protobuf.Empty) returns (Node) {}
   rpc ClosestPrecedingNode(Lookup) returns (Node) {}
   rpc FindSuccessor(Lookup) returns (Node) {}
-  rpc GetPredecessor(google.protobuf.Empty) returns (Node) {}
+  rpc GetPredecessor(Node) returns (Node) {}
   rpc Notify(Node) returns (google.protobuf.BoolValue) {}
   rpc GetFingerTable(google.protobuf.Empty) returns (Nodes) {}
   rpc GetSuccessorList(google.protobuf.Empty) returns (Nodes) {}
+  rpc GetStablizerData(Node) returns (StablizeData) {}
 }
 
 message Lookup {
@@ -23,7 +24,11 @@ message Lookup {
 message Node {
   string IP = 1;
   int32 Port = 2;
-  bytes Key = 3;
+}
+
+message StablizeData {
+  Node predecessor = 1;
+  Nodes nodes = 2;
 }
 
 message Nodes {

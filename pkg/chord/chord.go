@@ -1,4 +1,5 @@
 // Based on https://pdos.csail.mit.edu/papers/ton:chord/paper-ton.pdf
+
 package chord
 
 import (
@@ -7,119 +8,127 @@ import (
 	"fmt"
 	"math/big"
 	"net"
-	"strconv"
 	"sync"
 	"time"
 
-	"github.com/golang/protobuf/ptypes/empty"
 	pb "github.com/mbrostami/chord/internal/grpc"
 	"github.com/mbrostami/chord/pkg/helpers"
 	"google.golang.org/grpc"
 )
 
-// Node chord node
-type Node struct {
-	Identifier       [sha256.Size]byte // hashed value of node
-	IP               string
-	Port             int
+// MSIZE is the number of bits in identifier
+const MSIZE int = sha256.Size * 8
+
+// RSIZE is the number of records in successor list
+// ref E.3
+const RSIZE int = 5
+
+// Chord chord ring
+type Chord struct {
 	Successor        *Node // next node
 	Predecessor      *Node // previous node
+	SuccessorList    map[int]*Node
 	FingerTable      map[int]*Node
 	FingerFixerIndex int // to use in fixFinger
-	M                int // number of bits in identifier
-	connPool         map[string]*grpc.ClientConn
+	connectionPool   map[string]*grpc.ClientConn
 	mutex            sync.RWMutex
+	m                int // number of bits in identifier
+	r                int // ref E.3 - RSIZE
+	Node             Node
 }
 
-// NewNode create new node
-func NewNode(ip string, port int) *Node {
-	id := sha256.Sum256([]byte(ip + ":" + strconv.FormatInt(int64(port), 10)))
-	newNode := &Node{
-		Identifier:       id,
-		IP:               ip,
-		Port:             port,
+// NewChord create new node
+func NewChord(ip string, port int) *Chord {
+	chord := &Chord{
+		SuccessorList:    make(map[int]*Node),
 		FingerTable:      make(map[int]*Node),
 		FingerFixerIndex: 0,
-		M:                sha256.Size * 8,
-		connPool:         make(map[string]*grpc.ClientConn),
+		m:                MSIZE,
+		r:                RSIZE,
+		connectionPool:   make(map[string]*grpc.ClientConn),
 	}
-	newNode.Successor = newNode
-	newNode.Predecessor = nil
-	return newNode
+
+	chord.Node.IP = ip
+	chord.Node.Port = port
+	chord.Node.Identifier = helpers.Hash(ip, port)
+
+	chord.Successor = &chord.Node
+	chord.Predecessor = nil
+	return chord
 }
 
 // Join throw first node
-func (n *Node) Join(remote *Node) {
-	client := n.Connect(remote)
-	successor, err := client.FindSuccessor(context.Background(), &pb.Lookup{Key: n.Identifier[:]})
+func (c *Chord) Join(remote *Node) {
+	client := c.Connect(remote)
+	successor, err := client.FindSuccessor(context.Background(), &pb.Lookup{Key: c.Node.Identifier[:]})
 	if err != nil {
 		fmt.Printf("There is no predecessor from: %s:%d - %v - %v\n", remote.IP, remote.Port, successor, err)
 		return
 	}
 	fmt.Printf("Join: got successor %s:%d! \n", successor.IP, successor.Port)
-	n.Predecessor = nil
-	n.Successor = NewNode(successor.IP, int(successor.Port))
+	c.Predecessor = nil
+	c.Successor = &NewChord(successor.IP, int(successor.Port)).Node
 
-	n.mutex.Lock()
-	n.FingerTable[1] = n.Successor
-	n.mutex.Unlock()
-	n.RemoteSuccessorNotify() // update new successor's predecessor
+	c.mutex.Lock()
+	c.FingerTable[1] = c.Successor
+	c.mutex.Unlock()
+	c.RemoteSuccessorNotify() // update new successor's predecessor
 }
 
 // Notify update predecessor
 // is being called periodically by predecessor or new node
-func (n *Node) Notify(node *Node) bool {
-	// (n.predecessor is nil or node ∈ (n.predecessor, n))
-	if n.Predecessor == nil {
-		n.Predecessor = node
-		if n.Successor.Identifier == n.Identifier { // bootstrap node
-			n.Successor = node
-			n.RemoteSuccessorNotify() // notify successor
+func (c *Chord) Notify(node *Node) bool {
+	// (c.predecessor is nil or node ∈ (c.predecessor, n))
+	if c.Predecessor == nil {
+		c.Predecessor = node
+		if c.Successor.Identifier == c.Node.Identifier { // bootstrap node
+			c.Successor = node
+			c.RemoteSuccessorNotify() // notify successor
 		}
 		return true
 	}
-	if helpers.Between(node.Identifier, n.Predecessor.Identifier, n.Identifier) {
-		n.Predecessor = node
+	if helpers.Between(node.Identifier, c.Predecessor.Identifier, c.Node.Identifier) {
+		c.Predecessor = node
 		return true
 	}
 	return false
 }
 
 // FindSuccessor find the closest node to the given identifier
-func (n *Node) FindSuccessor(identifier [sha256.Size]byte) *Node {
+func (c *Chord) FindSuccessor(identifier [sha256.Size]byte) *Node {
 	// fmt.Printf("FindSuccessor: start looking for key %x \n", identifier)
-	if n.Successor.Identifier == n.Identifier {
-		return n
+	if c.Successor.Identifier == c.Node.Identifier {
+		return &c.Node
 	}
 	// id ∈ (n, successor]
-	if helpers.BetweenR(identifier, n.Identifier, n.Successor.Identifier) {
-		return n.Successor
+	if helpers.BetweenR(identifier, c.Node.Identifier, c.Successor.Identifier) {
+		return c.Successor
 	}
-	nextNode := n.closestPrecedingNode(identifier)
-	if nextNode.Identifier == n.Identifier { // current node is the only node in figer table
+	nextNode := c.closestPrecedingNode(identifier)
+	if nextNode.Identifier == c.Node.Identifier { // current node is the only node in figer table
 		return nextNode
 	}
-	return n.FindRemoteSuccessor(nextNode, identifier)
+	return c.FindRemoteSuccessor(nextNode, identifier)
 }
 
-func (n *Node) closestPrecedingNode(identifier [sha256.Size]byte) *Node {
-	n.mutex.RLock()
-	defer n.mutex.RUnlock()
-	for m := len(n.FingerTable); m > 0; m-- {
+func (c *Chord) closestPrecedingNode(identifier [sha256.Size]byte) *Node {
+	c.mutex.RLock()
+	defer c.mutex.RUnlock()
+	for m := len(c.FingerTable); m > 0; m-- {
 		// finger[i] ∈ (n, id)
-		//fmt.Printf("closestPrecedingNode: checking figertable[%d] => id, %x", m, n.FingerTable[m].Identifier)
-		if helpers.Between(n.FingerTable[m].Identifier, n.Identifier, identifier) {
-			return n.FingerTable[m]
+		//fmt.Printf("closestPrecedingNode: checking figertable[%d] => id, %x", m, c.FingerTable[m].Identifier)
+		if helpers.Between(c.FingerTable[m].Identifier, c.Node.Identifier, identifier) {
+			return c.FingerTable[m]
 		}
 	}
-	return n
+	return &c.Node
 }
 
 // FindRemoteSuccessor find closest node to the given key in remote node
-func (n *Node) FindRemoteSuccessor(remote *Node, key [sha256.Size]byte) *Node {
-	client := n.Connect(remote)
+func (c *Chord) FindRemoteSuccessor(remote *Node, key [sha256.Size]byte) *Node {
+	client := c.Connect(remote)
 	successor, err := client.FindSuccessor(context.Background(), &pb.Lookup{Key: key[:]})
-	chordNode := NewNode(successor.IP, int(successor.Port))
+	chordNode := &NewChord(successor.IP, int(successor.Port)).Node
 	if err != nil {
 		fmt.Printf("There is no remote successor from: %s:%d \n", remote.IP, remote.Port)
 	} else {
@@ -128,90 +137,163 @@ func (n *Node) FindRemoteSuccessor(remote *Node, key [sha256.Size]byte) *Node {
 	return chordNode
 }
 
-// GetRemotePredecessor get remote nodes predecessor
-func (n *Node) GetRemotePredecessor(remote *Node) *Node {
+// GetPredecessor return predecessor of current node, or replace current predecessor with caller if applicable
+// ref E.1
+func (c *Chord) GetPredecessor(caller *Node) *Node {
+	if c.Predecessor != nil {
+		// extension on chord
+		if helpers.Between(caller.Identifier, c.Predecessor.Identifier, c.Node.Identifier) {
+			c.Predecessor = caller // update predecessor if caller is closer than predecessor
+		}
+		return c.Predecessor
+	}
+	return &c.Node
+}
+
+// GetSuccessorList returns unsorted successor list
+// ref E.3
+func (c *Chord) GetSuccessorList() map[int]*Node {
+	return c.SuccessorList
+}
+
+// GetRemoteStablierData successor's (successor list and predecessor)
+// to prevent duplicate rpc call, we get both together
+// ref E.3
+func (c *Chord) GetRemoteStablierData(remote *Node) (*Node, map[int]*Node) {
 	// prepare kind of timeout to replace disconnected nodes
-	client := n.Connect(remote)
-	predecessor, err := client.GetPredecessor(context.Background(), new(empty.Empty), grpc.WaitForReady(true))
+	client := c.Connect(remote)
+
+	stablizerData, err := client.GetStablizerData(context.Background(), c.Node.GrpcNode(), grpc.WaitForReady(true))
 	if err != nil {
 		fmt.Printf("There is no remote predecessor ERROR: %+v \n", err)
 	}
-	chordNode := NewNode(predecessor.IP, int(predecessor.Port))
-	if err != nil {
-		fmt.Printf("There is no remote predecessor from: %s:%d \n", remote.IP, remote.Port)
-	} else {
-		//fmt.Printf("Remote node has found predecessor %s:%d! \n", predecessor.IP, predecessor.Port)
+	predecessor := stablizerData.Predecessor
+	chordNode := &NewChord(predecessor.IP, int(predecessor.Port)).Node
+
+	nodes := c.prepareSuccessorList(stablizerData.Nodes)
+	return chordNode, nodes
+}
+
+// prepareSuccessorList get remote successor list
+func (c *Chord) prepareSuccessorList(pbNodes *pb.Nodes) map[int]*Node {
+	successorList := pbNodes
+	nodes := make(map[int]*Node)
+	nodes[0] = c.Successor // replace first item with successor itself
+	// fmt.Printf("successorList starting to update \n")
+	index := 1
+	for i := 0; i < len(successorList.Nodes); i++ {
+		if len(nodes) >= c.r { // prevent overloading successorlist (max(r)=(log N)) ref E.3
+			break
+		}
+		chorNode := &NewChord(successorList.Nodes[i].IP, int(successorList.Nodes[i].Port)).Node
+		// ignore same nodes
+		if chorNode.Identifier == c.Node.Identifier {
+			continue
+		}
+		nodes[index] = chorNode
+		// fmt.Printf("successorList added: %d ::: %x\n", index, chorNode.Identifier)
+		index++
 	}
-	return chordNode
+	return nodes
 }
 
 // RemoteSuccessorNotify notify remote node (update it's predecessur)
-func (n *Node) RemoteSuccessorNotify() (bool, error) {
-	client := n.Connect(n.Successor) // connect to the successor
-	node := &pb.Node{
-		IP:   n.IP,
-		Port: int32(n.Port),
-		Key:  n.Identifier[:], // FIXME remove identifier from grpc
-	}
-	result, err := client.Notify(context.Background(), node)
+func (c *Chord) RemoteSuccessorNotify() (bool, error) {
+	client := c.Connect(c.Successor) // connect to the successor
+	result, err := client.Notify(context.Background(), c.Node.GrpcNode())
 	if err != nil {
-		fmt.Printf("Error notifying successo: %s:%d \n", n.Successor.IP, n.Successor.Port)
+		fmt.Printf("Error notifying successo: %s:%d \n", c.Successor.IP, c.Successor.Port)
 		return false, err
 	}
 	// fmt.Printf("Remote node has notified %+v! \n", result)
 	return result.Value, err
 }
 
+// replaceSuccessor replace successor with next one
+func (c *Chord) replaceSuccessor(newSuccessor *Node) {
+	// replace successor with the next node in successor list
+	c.Successor = c.SuccessorList[1]
+	c.mutex.Lock()
+	c.FingerTable[1] = c.Successor
+	c.mutex.Unlock()
+}
+
 // Stabilize keep successor and predecessor updated
 // Runs periodically
-func (n *Node) Stabilize() {
+// FIXME if successor failed, replace with next item in successorlist
+// ref E.1 - E.3
+func (c *Chord) Stabilize() {
 	// If node has no successor yet, ignore
-	if n.Successor == nil {
+	if c.Successor == nil {
 		return
 	}
-	remotePredecessor := n.GetRemotePredecessor(n.Successor)
-	if remotePredecessor.Identifier == n.Identifier {
+	var successorAvailable bool = true
+	if !c.Ping(c.Successor) {
+		fmt.Printf("Successor failed! %x\n", c.Successor.Identifier)
+		successorAvailable = false
+		// skip first (start from 1, we already checked 0)
+		for i := 1; i < len(c.SuccessorList); i++ {
+			if c.Ping(c.SuccessorList[i]) {
+				c.replaceSuccessor(c.SuccessorList[i])
+				successorAvailable = true
+				fmt.Printf("Successor replaced with! %x\n", c.Successor.Identifier)
+				break
+			}
+		}
+	}
+	// if no successor available, skip stablize
+	if !successorAvailable {
 		return
 	}
+	remotePredecessor, successorList := c.GetRemoteStablierData(c.Successor)
 	// means successor's predececcor is changed
-
-	// if pred(succ) ∈ (n, succ)
-	if helpers.BetweenR(remotePredecessor.Identifier, n.Identifier, n.Successor.Identifier) {
-		n.Successor = remotePredecessor
-		n.RemoteSuccessorNotify()
+	if remotePredecessor.Identifier != c.Node.Identifier {
+		// if pred(succ) ∈ (n, succ)
+		if helpers.BetweenR(remotePredecessor.Identifier, c.Node.Identifier, c.Successor.Identifier) {
+			c.mutex.Lock()
+			c.FingerTable[1] = remotePredecessor
+			c.mutex.Unlock()
+			c.Successor = remotePredecessor
+			// immediatly update new successor about it's new predecessor
+			c.RemoteSuccessorNotify()
+		}
 	}
+	// Update successor list - ref E.3
+	c.SuccessorList = successorList
 }
 
 // CheckPredecessor keeps predecessor uptodate
 // Runs periodically
-func (n *Node) CheckPredecessor() {
-	if n.Predecessor != nil {
-		if !n.Ping(n.Predecessor) { // predecessor disconnected !
-			n.Predecessor = nil // set nil to be able to update predecessor by notify
+// ref E.1
+func (c *Chord) CheckPredecessor() {
+	if c.Predecessor != nil {
+		if !c.Ping(c.Predecessor) { // predecessor disconnected !
+			c.Predecessor = nil // set nil to be able to update predecessor by notify
 		}
 	}
 }
 
 // FixFingers refreshes finger table entities
 // Runs periodically
-func (n *Node) FixFingers() {
-	if n.Successor == nil {
+// ref E.1
+func (c *Chord) FixFingers() {
+	if c.Successor == nil {
 		return
 	}
-	n.FingerFixerIndex++
-	if n.FingerFixerIndex > 5 {
-		n.FingerFixerIndex = 1
+	c.FingerFixerIndex++
+	if c.FingerFixerIndex > c.m {
+		c.FingerFixerIndex = 1
 	}
 	// finger[k] = (n + 2 ** k-1) Mod M
 
 	meint := new(big.Int)
-	meint.SetBytes(n.Identifier[:])
+	meint.SetBytes(c.Node.Identifier[:])
 
 	baseint := new(big.Int)
 	baseint.SetUint64(2)
 
 	powint := new(big.Int)
-	powint.SetInt64(int64(n.FingerFixerIndex - 1))
+	powint.SetInt64(int64(c.FingerFixerIndex - 1))
 
 	var biggest [sha256.Size + 1]byte
 	for i := range biggest {
@@ -245,44 +327,52 @@ func (n *Node) FixFingers() {
 	}
 	var identifier [sha256.Size]byte
 	copy(identifier[:sha256.Size], bytes[:sha256.Size])
-	findSuccessor := n.FindSuccessor(identifier)
-	n.mutex.Lock()
-	n.FingerTable[n.FingerFixerIndex] = findSuccessor
-	n.mutex.Unlock()
-	// if n.FingerFixerIndex == 1 { // first item in fingertable is immediate successor
-	// 	n.Successor = n.FingerTable[n.FingerFixerIndex]
-	// }
+	findSuccessor := c.FindSuccessor(identifier)
+	c.mutex.Lock()
+	c.FingerTable[c.FingerFixerIndex] = findSuccessor
+	c.mutex.Unlock()
+	if c.FingerFixerIndex == 1 { // first item in fingertable is immediate successor
+		c.mutex.RLock()
+		c.Successor = c.FingerTable[c.FingerFixerIndex]
+		c.mutex.RUnlock()
+		// immediatly update new successor about it's new predecessor
+		c.RemoteSuccessorNotify()
+	}
 }
 
 // Debug prints successor,predecessor
 // Runs periodically
-func (n *Node) Debug() {
-	fmt.Printf("Current Node: %s:%d:%x\n", n.IP, n.Port, n.Identifier)
-	if n.Successor != nil {
-		fmt.Printf("Current Node Successor: %s:%d:%x\n", n.Successor.IP, n.Successor.Port, n.Successor.Identifier)
+func (c *Chord) Debug() {
+	fmt.Printf("Current Node: %s:%d:%x\n", c.Node.IP, c.Node.Port, c.Node.Identifier)
+	if c.Successor != nil {
+		fmt.Printf("Current Node Successor: %s:%d:%x\n", c.Successor.IP, c.Successor.Port, c.Successor.Identifier)
 	}
-	if n.Predecessor != nil {
-		fmt.Printf("Current Node Predecessor: %s:%d:%x\n\n", n.Predecessor.IP, n.Predecessor.Port, n.Predecessor.Identifier)
+	if c.Predecessor != nil {
+		fmt.Printf("Current Node Predecessor: %s:%d:%x\n", c.Predecessor.IP, c.Predecessor.Port, c.Predecessor.Identifier)
 	}
+	for i := 0; i < len(c.SuccessorList); i++ {
+		fmt.Printf("successorList %d: %x\n", i, c.SuccessorList[i].Identifier)
+	}
+	fmt.Print("\n")
 }
 
 // Connect grpc connect to remote node
 // FIXME should be cached
-func (n *Node) Connect(remote *Node) pb.ChordClient {
-	addr := remote.IP + ":" + strconv.FormatInt(int64(remote.Port), 10)
-	if n.connPool[addr] == nil {
+func (c *Chord) Connect(remote *Node) pb.ChordClient {
+	addr := remote.FullAddr()
+	if c.connectionPool[addr] == nil {
 		conn, _ := grpc.Dial(addr, grpc.WithInsecure())
-		n.connPool[addr] = conn
+		c.connectionPool[addr] = conn
 	}
-	client := pb.NewChordClient(n.connPool[addr])
-	return client
+	return pb.NewChordClient(c.connectionPool[addr])
 }
 
-// Ping check if remote port is open
+// Ping check if remote port is open - using to check predecessor state
 // FIXME should be cached
-func (n *Node) Ping(remote *Node) bool {
+// ref E.1
+func (c *Chord) Ping(remote *Node) bool {
 	timeout := time.Second
-	conn, err := net.DialTimeout("tcp", net.JoinHostPort(remote.IP, strconv.FormatInt(int64(remote.Port), 10)), timeout)
+	conn, err := net.DialTimeout("tcp", remote.FullAddr(), timeout)
 	if err != nil {
 		//fmt.Printf("Ping to %s:%d error:%v", remote.IP, remote.Port, err)
 		return false
