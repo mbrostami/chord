@@ -21,27 +21,19 @@ type ChordServer struct {
 // Notify update predecessor
 // is being called periodically
 func (s *ChordServer) Notify(ctx context.Context, n *pb.Node) (*wrappers.BoolValue, error) {
-	node := &chord.NewChord(n.IP, int(n.Port)).Node // make node struct and calculate identifier
+	node := ConvertToChordNode(n) // make node struct and calculate identifier
 	result := &wrappers.BoolValue{}
 	result.Value = s.ChordRing.Notify(node)
 	return result, nil
 }
 
 // GetStablizerData get predecessor node + successor list
-func (s *ChordServer) GetStablizerData(ctx context.Context, caller *pb.Node) (*pb.StablizeData, error) {
-	stablizeData := &pb.StablizeData{}
-	cnode := &chord.NewChord(caller.IP, int(caller.Port)).Node
+func (s *ChordServer) GetStablizerData(ctx context.Context, caller *pb.Node) (*pb.StablizerData, error) {
+	stablizeData := &pb.StablizerData{}
+	cnode := ConvertToChordNode(caller)
 	predecessor := s.ChordRing.GetPredecessor(cnode)
-	node := predecessor.GrpcNode()
-	stablizeData.Predecessor = node
-
-	successorList := s.ChordRing.GetSuccessorList()
-	nodes := &pb.Nodes{}
-	for i := 0; i < len(successorList); i++ { // also sorts the map
-		successor := successorList[i].GrpcNode()
-		nodes.Nodes = append(nodes.Nodes, successor)
-	}
-	stablizeData.Nodes = nodes
+	stablizeData.Predecessor = ConvertToGrpcNode(predecessor)
+	stablizeData.SuccessorList = ConvertToGrpcSuccessorList(s.ChordRing.GetSuccessorList())
 	return stablizeData, nil
 }
 
@@ -50,13 +42,8 @@ func (s *ChordServer) FindSuccessor(ctx context.Context, lookup *pb.Lookup) (*pb
 	var id [sha256.Size]byte
 	copy(id[:], lookup.Key[:sha256.Size])
 	successor := s.ChordRing.FindSuccessor(id)
-	return successor.GrpcNode(), nil
+	return ConvertToGrpcNode(successor), nil
 }
-
-// GetSuccessor(context.Context, *empty.Empty) (*Node, error)
-// FindSuccessor(context.Context, *Lookup) (*Node, error)
-// Notify(context.Context, *Node) (*wrappers.BoolValue, error)
-// GetFingerTable(context.Context, *empty.Empty) (*Nodes, error)
 
 // NewChordServer ip port
 func NewChordServer(chordRing *chord.Chord) {

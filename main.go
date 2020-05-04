@@ -5,8 +5,9 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/mbrostami/chord/internal/clientadapter"
+	"github.com/mbrostami/chord/internal/server"
 	"github.com/mbrostami/chord/pkg/chord"
-	"github.com/mbrostami/chord/pkg/server"
 )
 
 func main() {
@@ -15,15 +16,22 @@ func main() {
 	port := flag.Int("port", 0, "port number")
 	flag.Parse()
 	var chordRing *chord.Chord
+
+	var client chord.ClientInterface
+	client = clientadapter.NewClient()
+
 	if *port == 0 {
 		// Should be a Bootstrap server which is acting like a node
 		// with one more functionality to find a closest available node to the newly joining node
 		fmt.Print("Bootstrap Node\n")
-		chordRing = chord.NewChord("127.0.0.1", 10001)
+		chordRing = chord.NewRing("127.0.0.1", 10001, client)
 	} else {
-		bootstrapNode := &chord.NewChord("127.0.0.1", 10001).Node
-		chordRing = chord.NewChord(*ip, int(*port))
-		successor := chordRing.FindRemoteSuccessor(bootstrapNode, chordRing.Node.Identifier)
+		bootstrapNode := chord.NewNode("127.0.0.1", 10001)
+		chordRing = chord.NewRing(*ip, int(*port), client)
+		successor, err := client.FindSuccessor(bootstrapNode, chordRing.Node.Identifier[:])
+		if err != nil {
+			panic("bootstrap node is not available")
+		}
 		chordRing.Join(successor)
 	}
 

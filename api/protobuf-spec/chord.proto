@@ -8,13 +8,11 @@ package grpc;
 
 service Chord {
   rpc GetSuccessor(google.protobuf.Empty) returns (Node) {}
-  rpc ClosestPrecedingNode(Lookup) returns (Node) {}
   rpc FindSuccessor(Lookup) returns (Node) {}
   rpc GetPredecessor(Node) returns (Node) {}
   rpc Notify(Node) returns (google.protobuf.BoolValue) {}
-  rpc GetFingerTable(google.protobuf.Empty) returns (Nodes) {}
   rpc GetSuccessorList(google.protobuf.Empty) returns (Nodes) {}
-  rpc GetStablizerData(Node) returns (StablizeData) {}
+  rpc GetStablizerData(Node) returns (StablizerData) {}
 }
 
 message Lookup {
@@ -26,9 +24,9 @@ message Node {
   int32 Port = 2;
 }
 
-message StablizeData {
-  Node predecessor = 1;
-  Nodes nodes = 2;
+message StablizerData {
+  Node Predecessor = 1;
+  repeated Node SuccessorList = 2;
 }
 
 message Nodes {
