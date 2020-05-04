@@ -62,6 +62,7 @@ func NewRing(ip string, port int, clientAdapter ClientInterface) *Chord {
 func (c *Chord) Join(remote *Node) {
 	successor, err := c.clientAdapter.FindSuccessor(remote, c.Node.Identifier[:])
 	if err != nil {
+		fmt.Printf("Error Join: %v", err)
 		return
 	}
 	fmt.Printf("Join: got successor %s:%d! \n", successor.IP, successor.Port)
@@ -111,8 +112,8 @@ func (c *Chord) FindSuccessor(identifier [sha256.Size]byte) *Node {
 		return nextNode
 	}
 	nextNodeSuccessor, err := c.clientAdapter.FindSuccessor(nextNode, identifier[:])
-	if err != nil {
-		// TODO change successor
+	if err != nil { // unexpected error on successor
+		fmt.Printf("Unexpected error from successor %v", err)
 		return nil
 	}
 	return nextNodeSuccessor
@@ -213,7 +214,6 @@ func (c *Chord) Stabilize() {
 	}
 	// if no successor available, skip stablize
 	if !successorAvailable {
-		// FIXME remove successor
 		c.replaceSuccessor(c.Node)
 		return
 	}
@@ -342,14 +342,14 @@ func (c *Chord) FixFingers() {
 // Runs periodically
 func (c *Chord) Debug() {
 	fmt.Printf("Current Node: %s:%d:%x\n", c.Node.IP, c.Node.Port, c.Node.Identifier)
-	// if c.Successor != nil {
-	// 	fmt.Printf("Current Node Successor: %s:%d:%x\n", c.Successor.IP, c.Successor.Port, c.Successor.Identifier)
-	// }
+	if c.Successor != nil {
+		fmt.Printf("Current Node Successor: %s:%d:%x\n", c.Successor.IP, c.Successor.Port, c.Successor.Identifier)
+	}
 	// if c.Predecessor != nil {
 	// 	fmt.Printf("Current Node Predecessor: %s:%d:%x\n", c.Predecessor.IP, c.Predecessor.Port, c.Predecessor.Identifier)
 	// }
-	// for i := 0; i < len(c.SuccessorList); i++ {
-	// 	fmt.Printf("successorList %d: %x\n", i, c.SuccessorList[i].Identifier)
+	// for i := 0; i < len(c.SuccessorList.Nodes); i++ {
+	// fmt.Printf("successorList %d: %x\n", i, c.SuccessorList.Nodes[i].Identifier)
 	// }
 	// for i := 1; i < len(c.FingerTable); i++ {
 	// 	fmt.Printf("FingerTable %d: %s, %x\n", i, c.fingetTableDebug[i], c.FingerTable[i].Identifier)

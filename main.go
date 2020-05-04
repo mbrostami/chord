@@ -3,6 +3,7 @@ package main
 import (
 	"flag"
 	"fmt"
+	"sync"
 	"time"
 
 	"github.com/mbrostami/chord/internal/clientadapter"
@@ -19,22 +20,26 @@ func main() {
 
 	var client chord.ClientInterface
 	client = clientadapter.NewClient()
-
+	var bootstrapNode *chord.Node
 	if *port == 0 {
 		// Should be a Bootstrap server which is acting like a node
 		// with one more functionality to find a closest available node to the newly joining node
 		fmt.Print("Bootstrap Node\n")
 		chordRing = chord.NewRing("127.0.0.1", 10001, client)
 	} else {
-		bootstrapNode := chord.NewNode("127.0.0.1", 10001)
+		bootstrapNode = chord.NewNode("127.0.0.1", 10001)
 		chordRing = chord.NewRing(*ip, int(*port), client)
-		successor, err := client.FindSuccessor(bootstrapNode, chordRing.Node.Identifier[:])
-		if err != nil {
-			panic("bootstrap node is not available")
-		}
-		chordRing.Join(successor)
 	}
 
+	wg := sync.WaitGroup{}
+	wg.Add(1)
+	go server.NewChordServer(chordRing, &wg)
+	wg.Wait()
+	time.Sleep(2 * time.Second) // wait until grpc server is up
+	wg.Add(1)
+	if *port != 0 {
+		chordRing.Join(bootstrapNode)
+	}
 	go func() {
 		for {
 			chordRing.FixFingers() // every 5 seconds
@@ -61,5 +66,5 @@ func main() {
 			}
 		}()
 	}
-	server.NewChordServer(chordRing)
+	wg.Wait()
 }

@@ -3,8 +3,10 @@ package server
 import (
 	"context"
 	"crypto/sha256"
+	"errors"
 	"fmt"
 	"net"
+	"sync"
 
 	"github.com/golang/protobuf/ptypes/wrappers"
 	pb "github.com/mbrostami/chord/internal/grpc"
@@ -42,11 +44,14 @@ func (s *ChordServer) FindSuccessor(ctx context.Context, lookup *pb.Lookup) (*pb
 	var id [sha256.Size]byte
 	copy(id[:], lookup.Key[:sha256.Size])
 	successor := s.ChordRing.FindSuccessor(id)
+	if successor == nil {
+		return nil, errors.New("successor is null")
+	}
 	return ConvertToGrpcNode(successor), nil
 }
 
 // NewChordServer ip port
-func NewChordServer(chordRing *chord.Chord) {
+func NewChordServer(chordRing *chord.Chord, wg *sync.WaitGroup) {
 	var opts []grpc.ServerOption
 	grpcServer := grpc.NewServer(opts...)
 	chordServer := &ChordServer{
@@ -55,5 +60,6 @@ func NewChordServer(chordRing *chord.Chord) {
 	pb.RegisterChordServer(grpcServer, chordServer)
 	listener, _ := net.Listen("tcp", chordRing.Node.FullAddr())
 	fmt.Printf("Start listening on makeNodeServer: %s\n", chordRing.Node.FullAddr())
+	wg.Done()
 	grpcServer.Serve(listener)
 }
