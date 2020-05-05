@@ -1,6 +1,6 @@
 package chord
 
-//go:generate moq -out clientinterface_test.go . ClientInterface
+//go:generate moq -out adapter_test.go . ClientInterface
 
 // ClientInterface interface for client adapter
 type ClientInterface interface {
