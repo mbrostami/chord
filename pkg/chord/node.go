@@ -8,9 +8,11 @@ import (
 	"github.com/mbrostami/chord/pkg/helpers"
 )
 
+const IdentifierSize int = sha256.Size
+
 // Node node entity
 type Node struct {
-	Identifier [sha256.Size]byte // hashed value of node
+	Identifier [IdentifierSize]byte // hashed value of node
 	IP         string
 	Port       int
 }

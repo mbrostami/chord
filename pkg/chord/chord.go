@@ -59,13 +59,13 @@ func NewRing(ip string, port int, clientAdapter ClientInterface) *Chord {
 
 // Join throw first node
 // ref E.1
-func (c *Chord) Join(remote *Node) {
+func (c *Chord) Join(remote *Node) error {
 	successor, err := c.clientAdapter.FindSuccessor(remote, c.Node.Identifier[:])
 	if err != nil {
 		fmt.Printf("Error Join: %v", err)
-		return
+		return err
 	}
-	fmt.Printf("Join: got successor %s:%d! \n", successor.IP, successor.Port)
+	//fmt.Printf("Join: got successor %s:%d! \n", successor.IP, successor.Port)
 	c.Predecessor = nil
 	c.Successor = NewNode(successor.IP, int(successor.Port))
 
@@ -73,6 +73,7 @@ func (c *Chord) Join(remote *Node) {
 	c.FingerTable[1] = c.Successor
 	c.mutex.Unlock()
 	c.clientAdapter.Notify(c.Successor, c.Node)
+	return nil
 }
 
 // Notify update predecessor
@@ -126,10 +127,12 @@ func (c *Chord) closestPrecedingNode(identifier [sha256.Size]byte) *Node {
 	defer c.mutex.RUnlock()
 	var closesNodeInFingerTable *Node
 	for m := len(c.FingerTable); m > 0; m-- {
-		// finger[i] ∈ (n, id)
-		if helpers.Between(c.FingerTable[m].Identifier, c.Node.Identifier, identifier) {
-			closesNodeInFingerTable = c.FingerTable[m]
-			break
+		if c.FingerTable[m] != nil {
+			// finger[i] ∈ (n, id)
+			if helpers.Between(c.FingerTable[m].Identifier, c.Node.Identifier, identifier) {
+				closesNodeInFingerTable = c.FingerTable[m]
+				break
+			}
 		}
 	}
 

@@ -1,5 +1,8 @@
 package chord
 
+//go:generate moq -out clientinterface_test.go . ClientInterface
+
+// ClientInterface interface for client adapter
 type ClientInterface interface {
 
 	// FindSuccessor find the closest node to the given identifier
