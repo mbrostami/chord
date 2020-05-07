@@ -1,7 +1,6 @@
 package chord
 
 import (
-	"errors"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -10,9 +9,7 @@ import (
 func TestNewChordRing(t *testing.T) {
 	ip := "127.0.0.1"
 	port := 10001
-	var client ClientInterface
-	client = &ClientInterfaceMock{}
-	ring := NewRing(ip, port, client)
+	ring := NewRing(ip, port, MockClientInterface())
 	assert.Equal(t, "127.0.0.1", ring.Node.IP)
 	assert.Equal(t, 10001, ring.Node.Port)
 	assert.Equal(t, "127.0.0.1", ring.Successor.IP)
@@ -23,8 +20,9 @@ func TestNewChordRing(t *testing.T) {
 func TestSuccessfulJoin(t *testing.T) {
 	ip := "127.0.0.1"
 	port := 10001
-	var client ClientInterface
-	client = mockClientInterface("127.0.0.2", 10002)
+	client := MockClientInterface()
+	MockFindSuccessor(client, "127.0.0.2", 10002)
+	MockNotify(client)
 
 	ring := NewRing(ip, port, client)
 
@@ -45,8 +43,10 @@ func TestSuccessfulJoin(t *testing.T) {
 func TestFailedJoin(t *testing.T) {
 	ip := "127.0.0.1"
 	port := 10001
-	var client ClientInterface
-	client = mockClientInterfaceError()
+	client := MockClientInterface()
+	MockFindSuccessorError(client)
+	MockNotify(client)
+
 	ring := NewRing(ip, port, client)
 
 	remote := &Node{}
@@ -65,8 +65,9 @@ func TestFailedJoin(t *testing.T) {
 func TestNotify(t *testing.T) {
 	ip := "127.0.0.3"
 	port := 10003
-	var client ClientInterface
-	client = mockClientInterface("127.0.0.2", 10002)
+	client := MockClientInterface()
+	MockFindSuccessor(client, "127.0.0.2", 10002)
+	MockNotify(client)
 
 	ring := NewRing(ip, port, client) // identity 8671c42d43832fc5aec71a43a1b3baf4409f965cf912bbf88eab694e884e37ab
 
@@ -97,8 +98,10 @@ func TestNotify(t *testing.T) {
 func TestBootstrapNotify(t *testing.T) {
 	ip := "127.0.0.1"
 	port := 10001
-	var client ClientInterface
-	client = mockClientInterface("127.0.0.1", 10001)
+	client := MockClientInterface()
+	MockFindSuccessor(client, "127.0.0.1", 10001)
+	MockNotify(client)
+
 	ring := NewRing(ip, port, client)
 
 	err := ring.Join(NewNode(ip, port))
@@ -114,8 +117,10 @@ func TestBootstrapNotify(t *testing.T) {
 func TestBootstrapFindSuccessor(t *testing.T) {
 	ip := "127.0.0.1"
 	port := 10001
-	var client ClientInterface
-	client = mockClientInterface("127.0.0.1", 10001)
+	client := MockClientInterface()
+	MockFindSuccessor(client, "127.0.0.1", 10001)
+	MockNotify(client)
+
 	ring := NewRing(ip, port, client) // 09e14941532f07258a269c10c7750add26b56e687fbb5243ccdfac133d9b5e71
 
 	err := ring.Join(NewNode(ip, port))
@@ -130,9 +135,11 @@ func TestBootstrapFindSuccessor(t *testing.T) {
 func TestFindSuccessor(t *testing.T) {
 	ip := "127.0.0.1"
 	port := 10001
-	var client ClientInterface
-	client = mockClientInterface("127.0.0.2", 10002) // c0bcff0f
-	ring := NewRing(ip, port, client)                // node = 09e14941 successor = c0bcff0f
+	client := MockClientInterface()
+	MockFindSuccessor(client, "127.0.0.2", 10002) // c0bcff0f
+	MockNotify(client)
+
+	ring := NewRing(ip, port, client) // node = 09e14941 successor = c0bcff0f
 
 	err := ring.Join(NewNode(ip, port))
 	assert.Nil(t, err)
@@ -144,8 +151,10 @@ func TestFindSuccessor(t *testing.T) {
 }
 
 func TestClosestSuccessor(t *testing.T) {
-	var client ClientInterface
-	client = mockClientInterfaceConditional()
+	client := MockClientInterface()
+	MockFindSuccessorReturnRemote(client)
+	MockNotify(client)
+
 	ring := NewRing("127.0.0.4", 10004, client) // node = 44c02611
 
 	err := ring.Join(NewNode("127.0.0.1", 10010)) // successor = 6a1f5339
@@ -186,8 +195,10 @@ func TestClosestSuccessor(t *testing.T) {
 }
 
 func TestGetPredecessor(t *testing.T) {
-	var client ClientInterface
-	client = mockClientInterfaceConditional()
+	client := MockClientInterface()
+	MockFindSuccessorReturnRemote(client)
+	MockNotify(client)
+
 	ring := NewRing("127.0.0.4", 10004, client) // node = 44c02611
 
 	// predecessor is null -> return self node
@@ -217,38 +228,4 @@ func newNode(id string) *Node {
 		Identifier: identifier,
 	}
 	return n
-}
-
-func mockClientInterface(ip string, port int) *ClientInterfaceMock {
-	return &ClientInterfaceMock{
-		FindSuccessorFunc: func(remote *Node, identifier []byte) (*Node, error) {
-			n := NewNode(ip, port)
-			return n, nil
-		},
-		NotifyFunc: func(remote, node *Node) error {
-			return nil
-		},
-	}
-}
-
-func mockClientInterfaceConditional() *ClientInterfaceMock {
-	return &ClientInterfaceMock{
-		FindSuccessorFunc: func(remote *Node, identifier []byte) (*Node, error) {
-			return remote, nil
-		},
-		NotifyFunc: func(remote, node *Node) error {
-			return nil
-		},
-	}
-}
-
-func mockClientInterfaceError() *ClientInterfaceMock {
-	return &ClientInterfaceMock{
-		FindSuccessorFunc: func(remote *Node, identifier []byte) (*Node, error) {
-			return nil, errors.New("error happened")
-		},
-		NotifyFunc: func(remote, node *Node) error {
-			return nil
-		},
-	}
 }

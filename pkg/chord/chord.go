@@ -192,10 +192,6 @@ func (c *Chord) replaceSuccessor(newSuccessor *Node) {
 // FIXME if successor failed, replace with next item in successorlist
 // ref E.1 - E.3
 func (c *Chord) Stabilize() {
-	// If node has no successor yet, ignore
-	if c.Successor == nil {
-		return
-	}
 	var successorAvailable bool = true
 	var remotePredecessor *Node
 	var successorList *SuccessorList
