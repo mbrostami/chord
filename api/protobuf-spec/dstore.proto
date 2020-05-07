@@ -1,0 +1,31 @@
+syntax = "proto3";
+
+package dstoregrpc;
+
+service DStore {
+  rpc Store(KeyValue) returns (StoreResponse) {}
+  rpc Get(Lookup) returns (LookupResponse) {}
+}
+
+message Lookup {
+  bytes Key = 1;
+}
+
+message KeyValue {
+  bytes Key = 1;
+  bytes Value = 2;
+}
+
+message StoreResponse {
+  repeated Node Nodes = 1;
+}
+
+message LookupResponse {
+  bytes Value = 1;
+  repeated Node Nodes = 2;
+}
+
+message Node {
+  string IP = 1;
+  int32 Port = 2;
+}

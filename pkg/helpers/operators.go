@@ -92,3 +92,13 @@ func BetweenLR(sourceHash [sha256.Size]byte, startHash [sha256.Size]byte, endHas
 	// a <= n || n <= b
 	return (a.Cmp(n) == -1 || a.Cmp(n) == 0) || (b.Cmp(n) == 1 || a.Cmp(n) == 0)
 }
+
+// Equal check if a, b are equal
+func Equal(sourceHash [sha256.Size]byte, targetHash [sha256.Size]byte) bool {
+	a := new(big.Int)
+	b := new(big.Int)
+	a.SetBytes(sourceHash[:sha256.Size])
+	b.SetBytes(targetHash[:sha256.Size])
+	// a == b == n
+	return a.Cmp(b) == 0
+}

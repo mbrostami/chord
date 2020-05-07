@@ -22,7 +22,7 @@ func NewNode(ip string, port int) *Node {
 	newNode := &Node{}
 	newNode.IP = ip
 	newNode.Port = port
-	newNode.Identifier = helpers.Hash(ip, port)
+	newNode.Identifier = helpers.Hash(ip + ":" + strconv.FormatInt(int64(port), 10))
 	return newNode
 }
 

@@ -6,23 +6,22 @@ import (
 	"errors"
 	"fmt"
 	"net"
-	"sync"
 
 	"github.com/golang/protobuf/ptypes/wrappers"
-	pb "github.com/mbrostami/chord/internal/grpc"
+	chordgrpc "github.com/mbrostami/chord/internal/grpc/chord"
 	"github.com/mbrostami/chord/pkg/chord"
 	"google.golang.org/grpc"
 )
 
 // ChordServer grpc server
 type ChordServer struct {
-	pb.UnimplementedChordServer
+	chordgrpc.UnimplementedChordServer
 	ChordRing *chord.Chord
 }
 
 // Notify update predecessor
 // is being called periodically
-func (s *ChordServer) Notify(ctx context.Context, n *pb.Node) (*wrappers.BoolValue, error) {
+func (s *ChordServer) Notify(ctx context.Context, n *chordgrpc.Node) (*wrappers.BoolValue, error) {
 	node := ConvertToChordNode(n) // make node struct and calculate identifier
 	result := &wrappers.BoolValue{}
 	result.Value = s.ChordRing.Notify(node)
@@ -30,8 +29,8 @@ func (s *ChordServer) Notify(ctx context.Context, n *pb.Node) (*wrappers.BoolVal
 }
 
 // GetStablizerData get predecessor node + successor list
-func (s *ChordServer) GetStablizerData(ctx context.Context, caller *pb.Node) (*pb.StablizerData, error) {
-	stablizeData := &pb.StablizerData{}
+func (s *ChordServer) GetStablizerData(ctx context.Context, caller *chordgrpc.Node) (*chordgrpc.StablizerData, error) {
+	stablizeData := &chordgrpc.StablizerData{}
 	cnode := ConvertToChordNode(caller)
 	predecessor := s.ChordRing.GetPredecessor(cnode)
 	stablizeData.Predecessor = ConvertToGrpcNode(predecessor)
@@ -40,7 +39,7 @@ func (s *ChordServer) GetStablizerData(ctx context.Context, caller *pb.Node) (*p
 }
 
 // FindSuccessor get closest node to the given key
-func (s *ChordServer) FindSuccessor(ctx context.Context, lookup *pb.Lookup) (*pb.Node, error) {
+func (s *ChordServer) FindSuccessor(ctx context.Context, lookup *chordgrpc.Lookup) (*chordgrpc.Node, error) {
 	var id [sha256.Size]byte
 	copy(id[:], lookup.Key[:sha256.Size])
 	successor := s.ChordRing.FindSuccessor(id)
@@ -51,15 +50,14 @@ func (s *ChordServer) FindSuccessor(ctx context.Context, lookup *pb.Lookup) (*pb
 }
 
 // NewChordServer ip port
-func NewChordServer(chordRing *chord.Chord, wg *sync.WaitGroup) {
+func NewChordServer(chordRing *chord.Chord) {
 	var opts []grpc.ServerOption
 	grpcServer := grpc.NewServer(opts...)
 	chordServer := &ChordServer{
 		ChordRing: chordRing,
 	}
-	pb.RegisterChordServer(grpcServer, chordServer)
+	chordgrpc.RegisterChordServer(grpcServer, chordServer)
 	listener, _ := net.Listen("tcp", chordRing.Node.FullAddr())
 	fmt.Printf("Start listening on makeNodeServer: %s\n", chordRing.Node.FullAddr())
-	wg.Done()
 	grpcServer.Serve(listener)
 }

@@ -322,8 +322,7 @@ func (c *Chord) FixFingers() {
 	var identifier [sha256.Size]byte
 	copy(identifier[:sha256.Size], bytes[:sha256.Size])
 	findSuccessor := c.FindSuccessor(identifier)
-	stringidentifier := fmt.Sprintf("%x", identifier)
-	c.fingetTableDebug[c.FingerFixerIndex] = stringidentifier
+	c.fingetTableDebug[c.FingerFixerIndex] = fmt.Sprintf("%x", identifier)
 	c.mutex.Lock()
 	c.FingerTable[c.FingerFixerIndex] = findSuccessor
 	c.mutex.Unlock()

@@ -1,7 +1,8 @@
 package server
 
 import (
-	pb "github.com/mbrostami/chord/internal/grpc"
+	pb "github.com/mbrostami/chord/internal/grpc/chord"
+	dstoregrpc "github.com/mbrostami/chord/internal/grpc/dstore"
 	"github.com/mbrostami/chord/pkg/chord"
 )
 
@@ -16,6 +17,11 @@ func ConvertToGrpcNode(node *chord.Node) *pb.Node {
 
 // ConvertToChordNode make grpc node entity from chord node
 func ConvertToChordNode(node *pb.Node) *chord.Node {
+	return chord.NewNode(node.IP, int(node.Port))
+}
+
+// ConvertDstoreNodeToChordNode make grpc node entity from chord node
+func ConvertDstoreNodeToChordNode(node *dstoregrpc.Node) *chord.Node {
 	return chord.NewNode(node.IP, int(node.Port))
 }
 

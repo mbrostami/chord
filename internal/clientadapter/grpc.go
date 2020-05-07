@@ -8,7 +8,7 @@ import (
 	"sync"
 	"time"
 
-	pb "github.com/mbrostami/chord/internal/grpc"
+	pb "github.com/mbrostami/chord/internal/grpc/chord"
 	"github.com/mbrostami/chord/internal/server"
 	"github.com/mbrostami/chord/pkg/chord"
 	"google.golang.org/grpc"
