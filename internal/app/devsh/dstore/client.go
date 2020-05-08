@@ -2,6 +2,7 @@ package dstore
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"sync"
 
@@ -56,13 +57,25 @@ func (c *GrpcClient) Get(remote *chord.Node, key [chord.IdentifierSize]byte) ([]
 	fmt.Printf("CLIENT: Getting data from node %s, %x \n", remote.FullAddr(), key)
 	response, err := client.Get(context.Background(), lookup)
 	if err != nil {
-		// fmt.Printf("There is no predecessor from: %s:%d - %v - %v\n", remote.IP, remote.Port, successor, err)
 		return nil, err
 	}
-	if len(response.Nodes) > 0 {
+	if response.Value != nil {
 		return response.Value, nil
 	}
-	return nil, nil
+	if response.Nodes != nil {
+		for _, node := range response.Nodes {
+			chordNode := server.ConvertDstoreNodeToChordNode(node)
+			fmt.Printf("CLIENT: Getting data from next node %s, %x \n", chordNode.FullAddr(), key)
+			client := c.connect(chordNode)
+			res, _ := client.Get(context.Background(), lookup)
+			if res != nil {
+				if res.Value != nil {
+					return res.Value, nil
+				}
+			}
+		}
+	}
+	return nil, errors.New("key not found")
 }
 
 // Connect grpc connect to remote node

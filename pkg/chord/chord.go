@@ -260,12 +260,14 @@ func (c *Chord) updateSuccessorList(successorList *SuccessorList) {
 // CheckPredecessor keeps predecessor uptodate
 // Runs periodically
 // ref E.1
-func (c *Chord) CheckPredecessor() {
+func (c *Chord) CheckPredecessor() bool {
 	if c.Predecessor != nil {
 		if !c.clientAdapter.Ping(c.Predecessor) { // predecessor disconnected !
 			c.Predecessor = nil // set nil to be able to update predecessor by notify
+			return false
 		}
 	}
+	return true
 }
 
 // FixFingers refreshes finger table entities

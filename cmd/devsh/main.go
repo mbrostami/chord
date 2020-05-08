@@ -49,7 +49,11 @@ func main() {
 		fmt.Println("Enter target username:")
 		target, _ := reader.ReadString('\n')
 		fmt.Printf("Getting value of %s\n", target)
-		value, _ := dstore.Get(target)
-		fmt.Printf("Value is %s\n", value)
+		value, err := dstore.Get(target)
+		if err != nil {
+			fmt.Printf("%s\n", err.Error())
+		} else {
+			fmt.Printf("Value is %s\n", value)
+		}
 	}
 }

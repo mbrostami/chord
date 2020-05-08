@@ -44,12 +44,10 @@ func MakeDevsh(ip string, port int) *Devsh {
 func (d *Devsh) StartServer() {
 	var opts []grpc.ServerOption
 	grpcServer := grpc.NewServer(opts...)
-	chordServer := &server.ChordServer{
-		ChordRing: d.Chord,
-	}
-	dstoreServer := &server.DStoreServer{
-		ChordRing: d.Chord,
-	}
+
+	chordServer := server.NewChordServer(d.Chord)
+	dstoreServer := server.NewDStoreServer(d.Chord)
+
 	chordgrpc.RegisterChordServer(grpcServer, chordServer)
 	dstoregrpc.RegisterDStoreServer(grpcServer, dstoreServer)
 	listener, _ := net.Listen("tcp", d.Chord.Node.FullAddr())
