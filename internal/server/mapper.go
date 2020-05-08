@@ -15,6 +15,15 @@ func ConvertToGrpcNode(node *chord.Node) *pb.Node {
 	return grpcNode
 }
 
+// ConvertToDstoreGrpcNode make grpc node entity from chord node
+func ConvertToDstoreGrpcNode(node *chord.Node) *dstoregrpc.Node {
+	grpcNode := &dstoregrpc.Node{
+		IP:   node.IP,
+		Port: int32(node.Port),
+	}
+	return grpcNode
+}
+
 // ConvertToChordNode make grpc node entity from chord node
 func ConvertToChordNode(node *pb.Node) *chord.Node {
 	return chord.NewNode(node.IP, int(node.Port))
@@ -23,6 +32,17 @@ func ConvertToChordNode(node *pb.Node) *chord.Node {
 // ConvertDstoreNodeToChordNode make grpc node entity from chord node
 func ConvertDstoreNodeToChordNode(node *dstoregrpc.Node) *chord.Node {
 	return chord.NewNode(node.IP, int(node.Port))
+}
+
+// ConvertDstoreToGrpcSuccessorList make grpc node entity from chord node
+func ConvertDstoreToGrpcSuccessorList(slist *chord.SuccessorList) []*dstoregrpc.Node {
+	nodes := []*dstoregrpc.Node{}
+	if slist != nil {
+		for i := 0; i < len(slist.Nodes); i++ { // keep sorts
+			nodes = append(nodes, ConvertToDstoreGrpcNode(slist.Nodes[i]))
+		}
+	}
+	return nodes
 }
 
 // ConvertToGrpcSuccessorList make grpc node entity from chord node

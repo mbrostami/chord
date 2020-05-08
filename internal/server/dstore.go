@@ -33,12 +33,7 @@ func (s *DStoreServer) Store(ctx context.Context, keyValue *dstoregrpc.KeyValue)
 	var key [sha256.Size]byte
 	copy(key[:sha256.Size], keyValue.Key[:sha256.Size])
 	s.database[key] = string(keyValue.Value)
-	for i := 0; i < len(s.ChordRing.SuccessorList.Nodes); i++ {
-		node := &dstoregrpc.Node{}
-		node.IP = s.ChordRing.SuccessorList.Nodes[i].IP
-		node.Port = int32(s.ChordRing.SuccessorList.Nodes[i].Port)
-		response.Nodes = append(response.Nodes, node)
-	}
+	response.Nodes = ConvertDstoreToGrpcSuccessorList(s.ChordRing.SuccessorList)
 	return response, nil
 }
 
@@ -53,14 +48,8 @@ func (s *DStoreServer) Get(ctx context.Context, lookup *dstoregrpc.Lookup) (*dst
 		response.Value = []byte(value)
 		return response, nil
 	}
-	for i := 0; i < len(s.ChordRing.SuccessorList.Nodes); i++ {
-		node := &dstoregrpc.Node{}
-		node.IP = s.ChordRing.SuccessorList.Nodes[i].IP
-		node.Port = int32(s.ChordRing.SuccessorList.Nodes[i].Port)
-		fmt.Printf("SERVER: returning successorlist %s:%d \n", node.IP, node.Port)
-		response.Nodes = append(response.Nodes, node)
-	}
-	if response.Nodes == nil {
+	response.Nodes = ConvertDstoreToGrpcSuccessorList(s.ChordRing.SuccessorList)
+	if len(response.Nodes) == 0 {
 		return nil, errors.New("key not found")
 	}
 	return response, nil
