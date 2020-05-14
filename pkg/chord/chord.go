@@ -14,6 +14,7 @@ import (
 // MSIZE is the number of bits in identifier
 // in fact only O(log n) are distinct
 // ref D - Theorem IV.2
+// change to sha1.size
 const MSIZE int = sha256.Size * 8
 
 // RSIZE is the number of records in successor list
@@ -72,12 +73,14 @@ func (c *Chord) Join(remote *Node) error {
 	c.mutex.Lock()
 	c.FingerTable[1] = c.Successor
 	c.mutex.Unlock()
+	// TODO This can return current predecessor of the remote node to put that as new predecessor instead of setting nil
 	c.clientAdapter.Notify(c.Successor, c.Node)
 	return nil
 }
 
 // Notify update predecessor
 // is being called periodically by predecessor or new node
+// TODO This can return current predecessor for the caller to put that as new predecessor instead of setting nul in join step
 // ref E.1
 func (c *Chord) Notify(node *Node) bool {
 	// (c.predecessor is nil or node ∈ (c.predecessor, n))
