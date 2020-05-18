@@ -3,7 +3,6 @@ package net
 import (
 	"context"
 	"errors"
-	"fmt"
 	"net"
 	"sync"
 	"time"
@@ -11,6 +10,7 @@ import (
 	"github.com/mbrostami/chord"
 	chordGrpc "github.com/mbrostami/chord/grpc"
 	"github.com/mbrostami/chord/helpers"
+	log "github.com/sirupsen/logrus"
 	"google.golang.org/grpc"
 )
 
@@ -33,7 +33,7 @@ func (rs *RemoteNodeSenderGrpc) FindSuccessor(remoteNode *chord.RemoteNode, iden
 	client := rs.connect(remoteNode)
 	successor, err := client.FindSuccessor(context.Background(), &chordGrpc.Lookup{Key: identifier[:]})
 	if err != nil {
-		// fmt.Printf("There is no predecessor from: %s:%d - %v - %v\n", remote.IP, remote.Port, successor, err)
+		log.Errorf("There is no predecessor from: %s:%d - %v - %v\n", remoteNode.IP, remoteNode.Port, successor, err)
 		return nil, err
 	}
 	return chordGrpc.ConvertToChordNode(successor), err
@@ -48,7 +48,7 @@ func (rs *RemoteNodeSenderGrpc) GetStablizerData(remoteNode *chord.RemoteNode, l
 
 	stablizerData, err := client.GetStablizerData(context.Background(), chordGrpc.ConvertToGrpcNode(localNode))
 	if err != nil {
-		fmt.Printf("Remote GetStablizerData failed: %+v \n", err)
+		log.Errorf("Remote GetStablizerData failed: %+v \n", err)
 		return nil, nil, err
 	}
 	predecessor := chordGrpc.ConvertToChordNode(stablizerData.Predecessor)
@@ -64,10 +64,11 @@ func (rs *RemoteNodeSenderGrpc) Notify(remoteNode *chord.RemoteNode, localNode *
 	client := rs.connect(remoteNode) // connect to the successor
 	result, err := client.Notify(context.Background(), chordGrpc.ConvertToGrpcNode(localNode))
 	if err != nil {
-		fmt.Printf("Error notifying successor: %s err: %v \n", remoteNode.GetFullAddress(), err)
+		log.Errorf("Error notifying successor: %s err: %v \n", remoteNode.GetFullAddress(), err)
 		return err
 	}
 	if !result.Value {
+		log.Error("notify failed")
 		return errors.New("notify failed")
 	}
 	// fmt.Printf("Remote node has notified %+v! \n", result)
@@ -81,12 +82,12 @@ func (rs *RemoteNodeSenderGrpc) Ping(remoteNode *chord.RemoteNode) bool {
 	timeout := time.Second
 	conn, err := net.DialTimeout("tcp", remoteNode.GetFullAddress(), timeout)
 	if err != nil {
-		//fmt.Printf("Ping to %s:%d error:%v", remote.IP, remote.Port, err)
+		log.Errorf("Ping to %s:%d error:%v", remoteNode.IP, remoteNode.Port, err)
 		return false
 	}
 	if conn != nil {
 		defer conn.Close()
-		//fmt.Printf("Ping successful %s:%d", remote.IP, remote.Port)
+		// log.Debugf("Ping successful %s:%d", remoteNode.IP, remoteNode.Port)
 		return true
 	}
 	return false

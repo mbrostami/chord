@@ -1,7 +1,6 @@
-# Chord  
-Implemented based on https://pdos.csail.mit.edu/papers/ton:chord/paper-ton.pdf  
-
-
+# Chord
+Chord protocol implemented based on https://pdos.csail.mit.edu/papers/ton:chord/paper-ton.pdf   
+Dstore implemented based on https://pdos.csail.mit.edu/papers/sit-phd-thesis.pdf   
 
 
 # JOIN

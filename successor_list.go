@@ -50,7 +50,7 @@ func (sl *SuccessorList) ClosestPrecedingNode(identifier [helpers.HashSize]byte,
 }
 
 // UpdateSuccessorList updates successor list - ref E.3
-func (sl *SuccessorList) UpdateSuccessorList(successor *RemoteNode, localNode *Node, successorList *SuccessorList) {
+func (sl *SuccessorList) UpdateSuccessorList(successor *RemoteNode, predecessor *RemoteNode, localNode *Node, successorList *SuccessorList) {
 	if successorList == nil || successor == nil {
 		return
 	}
@@ -67,6 +67,15 @@ func (sl *SuccessorList) UpdateSuccessorList(successor *RemoteNode, localNode *N
 		// ignore same nodes
 		if chorNode.Identifier == localNode.Identifier {
 			continue
+		}
+		// in small networks where the number of nodes are smaller than sl.r number
+		// it's possible to have current node predecessor in successor's successorlist
+		// to prevent this loop, we should check successorlist and be sure to remove those
+		// in order to prevent a loop (including failed nodes)
+		if predecessor != nil {
+			if chorNode.Identifier == predecessor.Identifier {
+				break // skip next records including current one
+			}
 		}
 		sl.Nodes[index] = chorNode
 		index++

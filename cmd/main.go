@@ -2,19 +2,29 @@ package main
 
 import (
 	"flag"
-	"fmt"
 	"sync"
 	"time"
 
 	"github.com/mbrostami/chord"
 	"github.com/mbrostami/chord/net"
+	log "github.com/sirupsen/logrus"
 )
 
 func main() {
-	verbose := flag.Bool("v", false, "verbose")
+	logLevelWarning := flag.Bool("v", false, "verbose (warning)")
+	logLevelInfo := flag.Bool("vv", false, "verbose (info)")
+	logLevelDebug := flag.Bool("vvv", false, "verbose (debug)")
 	ip := flag.String("ip", "127.0.0.1", "ip address")
 	port := flag.Int("port", 0, "port number")
 	flag.Parse()
+
+	if *logLevelDebug {
+		log.SetLevel(log.DebugLevel)
+	} else if *logLevelInfo {
+		log.SetLevel(log.InfoLevel)
+	} else if *logLevelWarning {
+		log.SetLevel(log.WarnLevel)
+	}
 
 	remoteSender := net.NewRemoteNodeSenderGrpc()
 	var chordRing chord.RingInterface
@@ -23,7 +33,7 @@ func main() {
 	if *port == 0 {
 		// Should be a Bootstrap server which is acting like a node
 		// with one more functionality to find a closest available node to the newly joining node
-		fmt.Print("Bootstrap Node\n")
+		log.Info("Bootstrap Node")
 		node := chord.NewNode("127.0.0.1", 10001)
 		chordRing = chord.NewRing(node, remoteSender)
 	} else {
@@ -55,14 +65,12 @@ func main() {
 			time.Sleep(1 * time.Second)
 		}
 	}()
-	if *verbose {
-		go func() {
-			for {
-				chordRing.Verbose()
-				time.Sleep(5 * time.Second)
-			}
-		}()
-	}
+	go func() {
+		for {
+			chordRing.Verbose()
+			time.Sleep(5 * time.Second)
+		}
+	}()
 	var wg sync.WaitGroup
 	wg.Add(1)
 	wg.Wait()

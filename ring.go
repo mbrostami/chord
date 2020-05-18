@@ -1,9 +1,8 @@
 package chord
 
 import (
-	"fmt"
-
 	"github.com/mbrostami/chord/helpers"
+	log "github.com/sirupsen/logrus"
 )
 
 type Ring struct {
@@ -25,6 +24,8 @@ func NewRing(localNode *Node, remoteSender RemoteNodeSenderInterface) RingInterf
 		fingerTable:   NewFingerTable(),
 		stabilizer:    NewStabilizer(successorList),
 		successorList: successorList,
+		successor:     NewRemoteNode(localNode, remoteSender),
+		predecessor:   nil,
 	}
 	return ring
 }
@@ -34,7 +35,7 @@ func NewRing(localNode *Node, remoteSender RemoteNodeSenderInterface) RingInterf
 func (r *Ring) Join(remoteNode *RemoteNode) error {
 	successor, err := remoteNode.FindSuccessor(r.localNode.Identifier)
 	if err != nil {
-		fmt.Printf("Error Join: %v", err)
+		log.Errorf("Error Join: %v", err)
 		return err
 	}
 	//fmt.Printf("Join: got successor %s:%d! \n", successor.IP, successor.Port)
@@ -70,7 +71,7 @@ func (r *Ring) FindSuccessor(identifier [helpers.HashSize]byte) *RemoteNode {
 	}
 	nextNodeSuccessor, err := closestRemoteNode.FindSuccessor(identifier)
 	if err != nil { // unexpected error on successor
-		fmt.Printf("Unexpected error from successor %v", err)
+		log.Errorf("Unexpected error from successor %v", err)
 		return nil
 	}
 	return nextNodeSuccessor
@@ -80,19 +81,23 @@ func (r *Ring) FindSuccessor(identifier [helpers.HashSize]byte) *RemoteNode {
 // Runs periodically
 // ref E.1 - E.3
 func (r *Ring) Stabilize() {
-	if len(r.successorList.Nodes) == 0 { // if no successor available
-		r.successor = NewRemoteNode(r.localNode, r.remoteSender)
+	// if len(r.successorList.Nodes) == 0 { // if no successor available
+	// 	r.successor = NewRemoteNode(r.localNode, r.remoteSender)
+	// 	r.fingerTable.Set(1, r.successor)
+	// } else {
+	// log.Infof("stabilize: Successor is %x", r.successor.Identifier)
+
+	successor, successorList := r.stabilizer.Start(r.successor, r.localNode)
+	// Update successor list - ref E.3
+	r.successorList.UpdateSuccessorList(successor, r.predecessor, r.localNode, successorList)
+	// If successor is changed while stabilizing
+	if successor.Identifier != r.successor.Identifier {
+		r.successor = successor
 		r.fingerTable.Set(1, r.successor)
-	} else {
-		successor := r.stabilizer.Start(r.successor, r.localNode)
-		// If successor is changed while stabilizing
-		if successor.Identifier != r.successor.Identifier {
-			r.successor = successor
-			r.fingerTable.Set(1, r.successor)
-			// immediatly update new successor about it's new predecessor
-			r.successor.Notify(r.localNode)
-		}
+		// immediatly update new successor about it's new predecessor
+		r.successor.Notify(r.localNode)
 	}
+	// }
 }
 
 // Notify update predecessor
@@ -103,7 +108,9 @@ func (r *Ring) Notify(caller *Node) bool {
 	if r.predecessor == nil {
 		r.predecessor = NewRemoteNode(caller, r.remoteSender)
 		// First node in the network has itself as successor
+		log.Info("Notify applying!")
 		if r.successor.Identifier == r.localNode.Identifier {
+			log.Info("Bootstrap successor is changed!")
 			r.successor = r.predecessor
 			r.successor.Notify(r.localNode)
 		}
@@ -168,18 +175,18 @@ func (r *Ring) GetPredecessor(caller *RemoteNode) *RemoteNode {
 // Verbose prints successor,predecessor
 // Runs periodically
 func (r *Ring) Verbose() {
-	fmt.Printf("Current Node: %s:%d:%x\n", r.localNode.IP, r.localNode.Port, r.localNode.Identifier)
+	log.Debugf("Current Node: %s:%d:%x\n", r.localNode.IP, r.localNode.Port, r.localNode.Identifier)
 	if r.successor != nil {
-		fmt.Printf("Current Node Successor: %s:%d:%x\n", r.successor.IP, r.successor.Port, r.successor.Identifier)
+		log.Debugf("Current Node Successor: %s:%d:%x\n", r.successor.IP, r.successor.Port, r.successor.Identifier)
 	}
 	if r.predecessor != nil {
-		fmt.Printf("Current Node Predecessor: %s:%d:%x\n", r.predecessor.IP, r.predecessor.Port, r.predecessor.Identifier)
+		log.Debugf("Current Node Predecessor: %s:%d:%x\n", r.predecessor.IP, r.predecessor.Port, r.predecessor.Identifier)
 	}
 	for i := 0; i < len(r.successorList.Nodes); i++ {
-		fmt.Printf("successorList %d: %x\n", i, r.successorList.Nodes[i].Identifier)
+		log.Debugf("successorList %d: %x\n", i, r.successorList.Nodes[i].Identifier)
 	}
 	// for i := 1; i < len(r.FingerTable.Table); i++ {
 	// fmt.Printf("FingerTable %d: %s, %x\n", i, r.fingetTableDebug[i], c.FingerTable[i].Identifier)
 	// }
-	fmt.Print("\n")
+	log.Debugf("\n")
 }

@@ -3,13 +3,13 @@ package net
 import (
 	context "context"
 	"errors"
-	fmt "fmt"
 	"net"
 
 	wrappers "github.com/golang/protobuf/ptypes/wrappers"
 	"github.com/mbrostami/chord"
 	chordGrpc "github.com/mbrostami/chord/grpc"
 	"github.com/mbrostami/chord/helpers"
+	log "github.com/sirupsen/logrus"
 	grpc "google.golang.org/grpc"
 )
 
@@ -26,7 +26,7 @@ func NewChordReceiver(ring chord.RingInterface) *ChordGrpcReceiver {
 	}
 	chordGrpc.RegisterChordServer(grpcServer, chordServer)
 	listener, _ := net.Listen("tcp", ring.GetLocalNode().GetFullAddress())
-	fmt.Printf("Start listening on makeNodeServer: %s\n", ring.GetLocalNode().GetFullAddress())
+	log.Infof("Start listening on makeNodeServer: %s\n", ring.GetLocalNode().GetFullAddress())
 	grpcServer.Serve(listener)
 	return chordServer
 }
@@ -53,6 +53,7 @@ func (s *ChordGrpcReceiver) GetStablizerData(ctx context.Context, caller *chordG
 func (s *ChordGrpcReceiver) FindSuccessor(ctx context.Context, lookup *chordGrpc.Lookup) (*chordGrpc.Node, error) {
 	successor := s.ring.FindSuccessor(helpers.ConvertToHashSized(lookup.Key))
 	if successor == nil {
+		log.Error("receiver.FindSuccessor: Successor is null")
 		return nil, errors.New("successor is null")
 	}
 	return chordGrpc.ConvertToGrpcNode(successor.Node), nil

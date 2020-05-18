@@ -17,8 +17,13 @@ func NewStabilizer(successorList *SuccessorList) *Stabilizer {
 // Start keep successor, successor list and predecessor updated
 // Runs periodically
 // ref E.1 - E.3
-func (s *Stabilizer) Start(successor *RemoteNode, localNode *Node) *RemoteNode {
+func (s *Stabilizer) Start(successor *RemoteNode, localNode *Node) (*RemoteNode, *SuccessorList) {
 	successor, remotePredecessor, successorList := s.getSuccessorStablizerData(successor, localNode)
+
+	// if all successors failed, then skip stabilizer to run next time
+	if remotePredecessor == nil || localNode == nil {
+		return nil, nil
+	}
 	// means successor's predececcor is changed
 	if remotePredecessor.Identifier != localNode.Identifier {
 		// if pred(succ) ∈ (n, succ)
@@ -26,9 +31,7 @@ func (s *Stabilizer) Start(successor *RemoteNode, localNode *Node) *RemoteNode {
 			successor = remotePredecessor
 		}
 	}
-	// Update successor list - ref E.3
-	s.successorList.UpdateSuccessorList(successor, localNode, successorList)
-	return successor
+	return successor, successorList
 }
 
 // getSuccessorStablizerData get stabilizer data from successor

@@ -1,9 +1,8 @@
 package chord
 
 import (
-	"fmt"
-
 	"github.com/mbrostami/chord/helpers"
+	log "github.com/sirupsen/logrus"
 )
 
 type RemoteNode struct {
@@ -21,7 +20,9 @@ func NewRemoteNode(localNode *Node, remoteSender RemoteNodeSenderInterface) *Rem
 
 func (n *RemoteNode) FindSuccessor(identifier [helpers.HashSize]byte) (*RemoteNode, error) {
 	node, err := n.sender.FindSuccessor(n, identifier)
-	fmt.Printf("got successor from remote node: %x succ() => %x\n", identifier, node.Identifier)
+	if err == nil {
+		log.Infof("got successor from remote node: %x succ() => %x\n", identifier, node.Identifier)
+	}
 	return NewRemoteNode(node, n.sender), err
 }
 
