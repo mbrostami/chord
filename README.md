@@ -3,6 +3,9 @@ Chord protocol implemented based on https://pdos.csail.mit.edu/papers/ton:chord/
 Dstore implemented based on https://pdos.csail.mit.edu/papers/sit-phd-thesis.pdf   
 
 
+# TODO
+[ ] use https://github.com/grpc/grpc/blob/master/doc/health-checking.md instead of ping
+
 # JOIN
 - Initialize node
     - CalculateHASH

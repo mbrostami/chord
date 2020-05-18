@@ -4,25 +4,24 @@ import (
 	"context"
 	"errors"
 	"net"
-	"sync"
 	"time"
 
 	"github.com/mbrostami/chord"
 	chordGrpc "github.com/mbrostami/chord/grpc"
 	"github.com/mbrostami/chord/helpers"
+	"github.com/patrickmn/go-cache"
 	log "github.com/sirupsen/logrus"
 	"google.golang.org/grpc"
 )
 
 type RemoteNodeSenderGrpc struct {
-	connectionPool map[string]*grpc.ClientConn
-	mutex          sync.RWMutex
+	connectionPool *cache.Cache
 }
 
 func NewRemoteNodeSenderGrpc() chord.RemoteNodeSenderInterface {
 	var remoteSender chord.RemoteNodeSenderInterface
 	remoteSender = &RemoteNodeSenderGrpc{
-		connectionPool: make(map[string]*grpc.ClientConn),
+		connectionPool: cache.New(10*time.Second, 1*time.Minute),
 	}
 	return remoteSender
 }
@@ -96,11 +95,12 @@ func (rs *RemoteNodeSenderGrpc) Ping(remoteNode *chord.RemoteNode) bool {
 // Connect grpc connect to remote node
 func (rs *RemoteNodeSenderGrpc) connect(remoteNode *chord.RemoteNode) chordGrpc.ChordClient {
 	addr := remoteNode.GetFullAddress()
-	if rs.connectionPool[addr] == nil {
-		conn, _ := grpc.Dial(addr, grpc.WithInsecure())
-		rs.mutex.Lock()
-		defer rs.mutex.Unlock()
-		rs.connectionPool[addr] = conn
+	var conn *grpc.ClientConn
+	if x, found := rs.connectionPool.Get(addr); found {
+		conn = x.(*grpc.ClientConn)
+	} else {
+		conn, _ = grpc.Dial(addr, grpc.WithInsecure())
+		rs.connectionPool.Set(addr, conn, cache.DefaultExpiration)
 	}
-	return chordGrpc.NewChordClient(rs.connectionPool[addr])
+	return chordGrpc.NewChordClient(conn)
 }
