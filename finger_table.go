@@ -14,15 +14,15 @@ const MSIZE int = helpers.HashSize * 8
 
 type FingerTable struct {
 	mutex      sync.RWMutex
-	table      map[int]*RemoteNode // ref D
-	tableIndex int                 // to use in fixFinger
+	Table      map[int]*RemoteNode // ref D
+	TableIndex int                 // to use in fixFinger
 	m          int
 }
 
 func NewFingerTable() *FingerTable {
 	return &FingerTable{
-		table:      make(map[int]*RemoteNode),
-		tableIndex: 0,
+		Table:      make(map[int]*RemoteNode),
+		TableIndex: 0,
 		m:          MSIZE,
 	}
 }
@@ -30,11 +30,11 @@ func NewFingerTable() *FingerTable {
 func (f *FingerTable) ClosestPrecedingNode(identifier [helpers.HashSize]byte, localNode *Node) *RemoteNode {
 	f.mutex.RLock()
 	defer f.mutex.RUnlock()
-	for m := len(f.table); m > 0; m-- {
-		if f.table[m] != nil {
+	for m := len(f.Table); m > 0; m-- {
+		if f.Table[m] != nil {
 			// finger[i] ∈ (n, id)
-			if helpers.Between(f.table[m].Identifier, localNode.Identifier, identifier) {
-				return f.table[m]
+			if helpers.Between(f.Table[m].Identifier, localNode.Identifier, identifier) {
+				return f.Table[m]
 			}
 		}
 	}
@@ -44,14 +44,14 @@ func (f *FingerTable) ClosestPrecedingNode(identifier [helpers.HashSize]byte, lo
 func (f *FingerTable) Set(index int, remoteNode *RemoteNode) {
 	f.mutex.Lock()
 	defer f.mutex.Unlock()
-	f.table[index] = remoteNode
+	f.Table[index] = remoteNode
 }
 
 // CalculateIdentifier calculates next identifier
 func (f *FingerTable) CalculateIdentifier(localNode *Node) (int, [helpers.HashSize]byte) {
-	f.tableIndex++
-	if f.tableIndex > f.m {
-		f.tableIndex = 1
+	f.TableIndex++
+	if f.TableIndex > f.m {
+		f.TableIndex = 1
 	}
 
 	meint := new(big.Int)
@@ -61,7 +61,7 @@ func (f *FingerTable) CalculateIdentifier(localNode *Node) (int, [helpers.HashSi
 	baseint.SetUint64(2)
 
 	powint := new(big.Int)
-	powint.SetInt64(int64(f.tableIndex - 1))
+	powint.SetInt64(int64(f.TableIndex - 1))
 
 	var biggest [helpers.HashSize + 1]byte
 	for i := range biggest {
@@ -95,5 +95,5 @@ func (f *FingerTable) CalculateIdentifier(localNode *Node) (int, [helpers.HashSi
 	}
 	var identifier [helpers.HashSize]byte
 	copy(identifier[:helpers.HashSize], bytes[:helpers.HashSize])
-	return f.tableIndex, identifier
+	return f.TableIndex, identifier
 }

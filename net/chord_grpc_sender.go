@@ -64,7 +64,7 @@ func (rs *RemoteNodeSenderGrpc) Notify(remoteNode *chord.RemoteNode, localNode *
 	client := rs.connect(remoteNode) // connect to the successor
 	result, err := client.Notify(context.Background(), chordGrpc.ConvertToGrpcNode(localNode))
 	if err != nil {
-		fmt.Printf("Error notifying successo: %s \n", remoteNode.GetFullAddress())
+		fmt.Printf("Error notifying successor: %s err: %v \n", remoteNode.GetFullAddress(), err)
 		return err
 	}
 	if !result.Value {

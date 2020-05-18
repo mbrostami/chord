@@ -59,7 +59,6 @@ func (sl *SuccessorList) UpdateSuccessorList(successor *RemoteNode, localNode *N
 	sl.Nodes = make(map[int]*RemoteNode) // reset nodes
 	sl.Nodes[0] = successor              // replace first item with successor itself
 	index := 1
-	// FIXME read lock
 	for i := 0; i < len(successorList.Nodes); i++ {
 		if len(sl.Nodes) >= sl.r { // prevent overloading successorlist (max(r)=(log N)) ref E.3
 			break

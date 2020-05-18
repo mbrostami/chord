@@ -7,6 +7,21 @@ import "github.com/mbrostami/chord/helpers"
 // RingInterface interface for chord ring
 type RingInterface interface {
 
+	// Join joins a node to the network through remoteNode
+	Join(remoteNode *RemoteNode) error
+
+	// Verbose prints information about ring
+	Verbose()
+
+	// FixFingers fixes finger table periodically
+	FixFingers()
+
+	// CheckPredecessor check predecessor if it's not available periodically
+	CheckPredecessor()
+
+	// Stabilize checks successor if it's available, also updates successor list periodically
+	Stabilize()
+
 	// GetLocalNode returns local node
 	GetLocalNode() *Node
 
@@ -27,5 +42,5 @@ type RingInterface interface {
 	// GetStabilizerData successor's (successor list and predecessor)
 	// FIXME should be cached
 	// ref E.1
-	GetStabilizerData(caller *Node) (predecessor *Node, successorList *SuccessorList)
+	GetStabilizerData(caller *Node) (predecessor *RemoteNode, successorList *SuccessorList)
 }

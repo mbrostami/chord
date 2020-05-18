@@ -12,21 +12,37 @@ type Ring struct {
 	fingerTable   *FingerTable
 	successorList *SuccessorList
 	stabilizer    *Stabilizer
-	Predecessor   *RemoteNode
-	Successor     *RemoteNode
+	predecessor   *RemoteNode
+	successor     *RemoteNode
 }
 
-func NewRing(localNode *Node, remoteSender RemoteNodeSenderInterface) *RingInterface {
+func NewRing(localNode *Node, remoteSender RemoteNodeSenderInterface) RingInterface {
 	var ring RingInterface
 	successorList := NewSuccessorList()
 	ring = &Ring{
 		localNode:     localNode,
 		remoteSender:  remoteSender,
-		fingerTable:   &FingerTable{},
+		fingerTable:   NewFingerTable(),
 		stabilizer:    NewStabilizer(successorList),
 		successorList: successorList,
 	}
-	return &ring
+	return ring
+}
+
+// Join throw first node
+// ref E.1
+func (r *Ring) Join(remoteNode *RemoteNode) error {
+	successor, err := remoteNode.FindSuccessor(r.localNode.Identifier)
+	if err != nil {
+		fmt.Printf("Error Join: %v", err)
+		return err
+	}
+	//fmt.Printf("Join: got successor %s:%d! \n", successor.IP, successor.Port)
+	r.predecessor = nil
+	r.successor = successor
+	r.fingerTable.Set(1, r.successor)
+	r.successor.Notify(r.localNode)
+	return nil
 }
 
 func (r *Ring) GetLocalNode() *Node {
@@ -35,12 +51,12 @@ func (r *Ring) GetLocalNode() *Node {
 
 func (r *Ring) FindSuccessor(identifier [helpers.HashSize]byte) *RemoteNode {
 	// fmt.Printf("FindSuccessor: start looking for key %x \n", identifier)
-	if r.Successor.Identifier == r.localNode.Identifier {
+	if r.successor.Identifier == r.localNode.Identifier {
 		return NewRemoteNode(r.localNode, r.remoteSender)
 	}
 	// id ∈ (n, successor]
-	if helpers.BetweenR(identifier, r.localNode.Identifier, r.Successor.Identifier) {
-		return r.Successor
+	if helpers.BetweenR(identifier, r.localNode.Identifier, r.successor.Identifier) {
+		return r.successor
 	}
 	closestRemoteNode := r.fingerTable.ClosestPrecedingNode(identifier, r.localNode)
 	successorListClosestNode := r.successorList.ClosestPrecedingNode(identifier, r.localNode, closestRemoteNode)
@@ -65,16 +81,16 @@ func (r *Ring) FindSuccessor(identifier [helpers.HashSize]byte) *RemoteNode {
 // ref E.1 - E.3
 func (r *Ring) Stabilize() {
 	if len(r.successorList.Nodes) == 0 { // if no successor available
-		r.Successor = NewRemoteNode(r.localNode, r.remoteSender)
-		r.fingerTable.Set(1, r.Successor)
+		r.successor = NewRemoteNode(r.localNode, r.remoteSender)
+		r.fingerTable.Set(1, r.successor)
 	} else {
-		successor := r.stabilizer.Start(r.Successor, r.localNode)
+		successor := r.stabilizer.Start(r.successor, r.localNode)
 		// If successor is changed while stabilizing
-		if successor.Identifier != r.Successor.Identifier {
-			r.Successor = successor
-			r.fingerTable.Set(1, r.Successor)
+		if successor.Identifier != r.successor.Identifier {
+			r.successor = successor
+			r.fingerTable.Set(1, r.successor)
 			// immediatly update new successor about it's new predecessor
-			r.Successor.Notify(r.localNode)
+			r.successor.Notify(r.localNode)
 		}
 	}
 }
@@ -84,26 +100,26 @@ func (r *Ring) Stabilize() {
 // ref E.1
 func (r *Ring) Notify(caller *Node) bool {
 	// (c.predecessor is nil or node ∈ (c.predecessor, n))
-	if r.Predecessor == nil {
-		r.Predecessor = NewRemoteNode(caller, r.remoteSender)
+	if r.predecessor == nil {
+		r.predecessor = NewRemoteNode(caller, r.remoteSender)
 		// First node in the network has itself as successor
-		if r.Successor.Identifier == r.localNode.Identifier {
-			r.Successor = r.Predecessor
-			r.Successor.Notify(r.localNode)
+		if r.successor.Identifier == r.localNode.Identifier {
+			r.successor = r.predecessor
+			r.successor.Notify(r.localNode)
 		}
 		return true
 	}
-	if helpers.Between(caller.Identifier, r.Predecessor.Identifier, r.localNode.Identifier) {
-		r.Predecessor = NewRemoteNode(caller, r.remoteSender)
+	if helpers.Between(caller.Identifier, r.predecessor.Identifier, r.localNode.Identifier) {
+		r.predecessor = NewRemoteNode(caller, r.remoteSender)
 		return true
 	}
 	return false
 }
 
-func (r *Ring) CheckPredecessor(caller *RemoteNode) {
-	if r.Predecessor != nil {
-		if !r.Predecessor.Ping() {
-			r.Predecessor = nil // set nil to be able to update predecessor by notify
+func (r *Ring) CheckPredecessor() {
+	if r.predecessor != nil {
+		if !r.predecessor.Ping() {
+			r.predecessor = nil // set nil to be able to update predecessor by notify
 		}
 	}
 }
@@ -112,16 +128,16 @@ func (r *Ring) CheckPredecessor(caller *RemoteNode) {
 // Runs periodically
 // ref D - E.1 - finger[k] = (n + 2 ** k-1) Mod M
 func (r *Ring) FixFingers() {
-	if r.Successor == nil {
+	if r.successor == nil {
 		return
 	}
 	index, identifier := r.fingerTable.CalculateIdentifier(r.localNode)
 	remoteNode := r.FindSuccessor(identifier)
 	r.fingerTable.Set(index, remoteNode)
-	if index == 1 && remoteNode.Identifier != r.Successor.Identifier { // means it's first entry of fingerTable (first entry should be always the next successor of current node)
-		r.Successor = remoteNode
+	if index == 1 && remoteNode.Identifier != r.successor.Identifier { // means it's first entry of fingerTable (first entry should be always the next successor of current node)
+		r.successor = remoteNode
 		// immediatly update new successor about it's new predecessor
-		r.Successor.Notify(r.localNode)
+		r.successor.Notify(r.localNode)
 	}
 }
 
@@ -134,17 +150,36 @@ func (r *Ring) GetSuccessorList() *SuccessorList {
 // GetStabilizerData return predecessor and successor list
 func (r *Ring) GetStabilizerData(caller *Node) (*RemoteNode, *SuccessorList) {
 	remoteCaller := NewRemoteNode(caller, r.remoteSender)
-	predecessor := r.getPredecessor(remoteCaller)
+	predecessor := r.GetPredecessor(remoteCaller)
 	return predecessor, r.GetSuccessorList()
 }
 
-func (r *Ring) getPredecessor(caller *RemoteNode) *RemoteNode {
-	if r.Predecessor != nil {
+func (r *Ring) GetPredecessor(caller *RemoteNode) *RemoteNode {
+	if r.predecessor != nil {
 		// extension on chord
-		if helpers.Between(caller.Identifier, r.Predecessor.Identifier, r.localNode.Identifier) {
-			r.Predecessor = caller // update predecessor if caller is closer than predecessor
+		if helpers.Between(caller.Identifier, r.predecessor.Identifier, r.localNode.Identifier) {
+			r.predecessor = caller // update predecessor if caller is closer than predecessor
 		}
-		return r.Predecessor
+		return r.predecessor
 	}
 	return NewRemoteNode(r.localNode, r.remoteSender)
+}
+
+// Verbose prints successor,predecessor
+// Runs periodically
+func (r *Ring) Verbose() {
+	fmt.Printf("Current Node: %s:%d:%x\n", r.localNode.IP, r.localNode.Port, r.localNode.Identifier)
+	if r.successor != nil {
+		fmt.Printf("Current Node Successor: %s:%d:%x\n", r.successor.IP, r.successor.Port, r.successor.Identifier)
+	}
+	if r.predecessor != nil {
+		fmt.Printf("Current Node Predecessor: %s:%d:%x\n", r.predecessor.IP, r.predecessor.Port, r.predecessor.Identifier)
+	}
+	for i := 0; i < len(r.successorList.Nodes); i++ {
+		fmt.Printf("successorList %d: %x\n", i, r.successorList.Nodes[i].Identifier)
+	}
+	// for i := 1; i < len(r.FingerTable.Table); i++ {
+	// fmt.Printf("FingerTable %d: %s, %x\n", i, r.fingetTableDebug[i], c.FingerTable[i].Identifier)
+	// }
+	fmt.Print("\n")
 }

@@ -44,7 +44,7 @@ func (s *ChordGrpcReceiver) Notify(ctx context.Context, caller *chordGrpc.Node) 
 func (s *ChordGrpcReceiver) GetStablizerData(ctx context.Context, caller *chordGrpc.Node) (*chordGrpc.StablizerData, error) {
 	stabilizerData := &chordGrpc.StablizerData{}
 	predecessor, successorList := s.ring.GetStabilizerData(chordGrpc.ConvertToChordNode(caller))
-	stabilizerData.Predecessor = chordGrpc.ConvertToGrpcNode(predecessor)
+	stabilizerData.Predecessor = chordGrpc.ConvertToGrpcNode(predecessor.Node)
 	stabilizerData.SuccessorList = chordGrpc.ConvertToGrpcSuccessorList(successorList)
 	return stabilizerData, nil
 }
