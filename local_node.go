@@ -14,10 +14,11 @@ type Node struct {
 }
 
 func NewNode(ip string, port uint) *Node {
-	node := &Node{}
-	node.IP = ip
-	node.Port = port
-	node.Identifier = helpers.Hash(ip + ":" + strconv.FormatInt(int64(port), 10))
+	node := &Node{
+		IP:         ip,
+		Port:       port,
+		Identifier: helpers.Hash(ip + ":" + strconv.FormatInt(int64(port), 10)),
+	}
 	return node
 }
 

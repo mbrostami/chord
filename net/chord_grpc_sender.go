@@ -70,7 +70,6 @@ func (rs *RemoteNodeSenderGrpc) Notify(remoteNode *chord.RemoteNode, localNode *
 		log.Error("notify failed")
 		return errors.New("notify failed")
 	}
-	// fmt.Printf("Remote node has notified %+v! \n", result)
 	return nil
 }
 
@@ -81,12 +80,11 @@ func (rs *RemoteNodeSenderGrpc) Ping(remoteNode *chord.RemoteNode) bool {
 	timeout := time.Second
 	conn, err := net.DialTimeout("tcp", remoteNode.GetFullAddress(), timeout)
 	if err != nil {
-		log.Errorf("Ping to %s:%d error:%v", remoteNode.IP, remoteNode.Port, err)
+		log.Errorf("Ping %s:%d error:%v", remoteNode.IP, remoteNode.Port, err)
 		return false
 	}
 	if conn != nil {
 		defer conn.Close()
-		// log.Debugf("Ping successful %s:%d", remoteNode.IP, remoteNode.Port)
 		return true
 	}
 	return false
