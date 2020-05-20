@@ -81,7 +81,12 @@ func (r *Ring) FindSuccessor(identifier [helpers.HashSize]byte) *RemoteNode {
 // Runs periodically
 // ref E.1 - E.3
 func (r *Ring) Stabilize() {
-	successor, successorList := r.stabilizer.Start(r.successor, r.localNode)
+	successor, successorList, err := r.stabilizer.Start(r.successor, r.localNode)
+	if err != nil {
+		// all successors are failed
+		r.successor = NewRemoteNode(r.localNode, r.remoteSender)
+		return
+	}
 	// Update successor list - ref E.3
 	r.successorList.UpdateSuccessorList(successor, r.predecessor, r.localNode, successorList)
 	// If successor is changed while stabilizing
