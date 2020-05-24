@@ -1,31 +1,39 @@
 package chord
 
 import (
+	"errors"
+
 	"github.com/mbrostami/chord/helpers"
+	"github.com/mbrostami/chord/merkle"
 	log "github.com/sirupsen/logrus"
 )
 
 type Ring struct {
-	localNode     *Node
-	remoteSender  RemoteNodeSenderInterface
-	fingerTable   *FingerTable
-	successorList *SuccessorList
-	stabilizer    *Stabilizer
-	predecessor   *RemoteNode
-	successor     *RemoteNode
+	localNode       *Node
+	remoteSender    RemoteNodeSenderInterface
+	fingerTable     *FingerTable
+	successorList   *SuccessorList
+	predecessorList *PredecessorList
+	stabilizer      *Stabilizer
+	predecessor     *RemoteNode
+	successor       *RemoteNode
+	dstore          *DStore
 }
 
 func NewRing(localNode *Node, remoteSender RemoteNodeSenderInterface) RingInterface {
 	var ring RingInterface
 	successorList := NewSuccessorList()
+	predecessorList := NewPredecessorList()
 	ring = &Ring{
-		localNode:     localNode,
-		remoteSender:  remoteSender,
-		fingerTable:   NewFingerTable(),
-		stabilizer:    NewStabilizer(successorList),
-		successorList: successorList,
-		successor:     NewRemoteNode(localNode, remoteSender),
-		predecessor:   nil,
+		localNode:       localNode,
+		remoteSender:    remoteSender,
+		fingerTable:     NewFingerTable(),
+		stabilizer:      NewStabilizer(successorList, predecessorList),
+		successorList:   successorList,
+		predecessorList: predecessorList,
+		successor:       NewRemoteNode(localNode, remoteSender),
+		predecessor:     nil,
+		dstore:          NewDStore(),
 	}
 	return ring
 }
@@ -81,7 +89,7 @@ func (r *Ring) FindSuccessor(identifier [helpers.HashSize]byte) *RemoteNode {
 // Runs periodically
 // ref E.1 - E.3
 func (r *Ring) Stabilize() {
-	successor, successorList, err := r.stabilizer.Start(r.successor, r.localNode)
+	successor, successorList, err := r.stabilizer.StartSuccessorList(r.successor, r.localNode)
 	if err != nil {
 		// all successors are failed
 		r.successor = NewRemoteNode(r.localNode, r.remoteSender)
@@ -95,6 +103,18 @@ func (r *Ring) Stabilize() {
 		r.fingerTable.Set(1, r.successor)
 		// immediatly update new successor about it's new predecessor
 		r.successor.Notify(r.localNode)
+	}
+
+	if r.predecessor == nil {
+		return
+	}
+	// update predecessor list
+	// TODO can be replaces ping predecessor
+	predecessor, predecessorList, err := r.stabilizer.StartPredecessorList(r.predecessor, r.localNode)
+	r.predecessorList.UpdatePredecessorList(r.successor, predecessor, r.localNode, predecessorList)
+	// If successor is changed while stabilizing
+	if predecessor.Identifier != r.predecessor.Identifier {
+		r.predecessor = predecessor
 	}
 }
 
@@ -152,11 +172,147 @@ func (r *Ring) GetSuccessorList() *SuccessorList {
 	return r.successorList
 }
 
+// GetPredecessorList returns unsorted predecessor list
+func (r *Ring) GetPredecessorList(caller *Node) *PredecessorList {
+	return r.predecessorList
+}
+
 // GetStabilizerData return predecessor and successor list
 func (r *Ring) GetStabilizerData(caller *Node) (*RemoteNode, *SuccessorList) {
 	remoteCaller := NewRemoteNode(caller, r.remoteSender)
 	predecessor := r.GetPredecessor(remoteCaller)
 	return predecessor, r.GetSuccessorList()
+}
+
+// Store store data + make merkle tree
+// ref E.3
+func (r *Ring) Store(data []byte) bool {
+	log.Debug("ring:store start")
+	if r.predecessor == nil {
+		log.Debug("predecessor is nil")
+		return false
+	}
+	hash := helpers.Hash(string(data))
+	// check if hash ∈ (c.predecessor, n]
+	if !helpers.BetweenR(hash, r.predecessor.Identifier, r.localNode.Identifier) {
+		log.Debugf("data hash is not between %x and %x , hash: %x", r.predecessor.Identifier, r.localNode.Identifier, hash)
+		// reject storing values which current node is not responsible for
+		return false
+	}
+	if r.predecessorList.Nodes[DBREPLICAS] == nil {
+		log.Debugf("ring:Store predecessor list is not updated %d : %d", DBREPLICAS, len(r.predecessorList.Nodes))
+		// not possible til predecessor list updated
+		return false
+	}
+	// all data in this range ∈ (r.predecessorList[DBREPLICAS], r.localNode.Identifier]
+	allKeysInRange := r.dstore.GetRange(r.predecessorList.Nodes[DBREPLICAS].Identifier, r.localNode.Identifier)
+
+	if len(allKeysInRange) == 0 {
+		log.Debugf("Current node: %x", r.localNode.Identifier)
+		return r.dstore.Put(hash, data)
+	}
+	var list []merkle.Content
+	//Build list of Content to build tree
+	for _, value := range allKeysInRange {
+		list = append(list, merkle.TestContent{X: *value})
+	}
+	//Create a new Merkle Tree from the list of Content
+	tree, err := merkle.NewTree(list)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	// Make a hash out of predecessorList to check with replica node, if it has the same predecessorlist and name it RHash
+	var plhash [helpers.HashSize]byte
+	// add current node to hash, because successor has already this node in predecessor list
+	// so successor can check normally by hasing(DBREPLICAS + 1 predecessors)
+	plhash = helpers.Hash(string(plhash[:]) + string(r.localNode.Identifier[:]))
+	for i := 0; i < DBREPLICAS; i++ {
+		plhash = helpers.Hash(string(plhash[:]) + string(r.predecessorList.Nodes[i].Identifier[:]))
+	}
+	serializedTreeNodes, err := r.successor.ForwardSync(plhash, data, tree)
+	if err != nil {
+		log.Debugf("ring: forward sync faild: %x", r.successor.Identifier)
+		return false
+	}
+
+	if serializedTreeNodes == nil {
+		return r.dstore.Put(hash, data)
+	}
+	// Send merkleTree + new data + RHash
+	// receive response and store data locally , then return true.
+	log.Debugf("ring: response merkle tree: %+v", serializedTreeNodes)
+	// log.Debugf("Current node: %x", r.localNode.Identifier)
+	return false
+}
+
+// ForwardSync to sync
+func (r *Ring) ForwardSync(newData []byte, predecessorListHash [helpers.HashSize]byte, serializedData []*merkle.SerializedNode) ([]*merkle.SerializedNode, error) {
+	log.Debug("ring:ForwardSync start")
+	if r.predecessor == nil {
+		log.Debug("predecessor is nil")
+		return nil, errors.New("predecessor is nil")
+	}
+	if r.predecessorList.Nodes[DBREPLICAS+1] == nil {
+		log.Debugf("ring:ForwardSync predecessor list is not completed %d : %d", DBREPLICAS+1, len(r.predecessorList.Nodes))
+		if len(r.predecessorList.Nodes) > DBREPLICAS+1 {
+			for i := 0; i < len(r.predecessorList.Nodes); i++ {
+				log.Debugf("ring:ForwardSync predecessor list i: %d: %x", i, r.predecessorList.Nodes[i].Identifier)
+			}
+		}
+		// not possible til predecessor list updated
+		return nil, errors.New("predecessor list is not updated")
+	}
+
+	// calculate predecessors list hash
+	var plhash [helpers.HashSize]byte
+	for i := 0; i < DBREPLICAS+1; i++ {
+		plhash = helpers.Hash(string(plhash[:]) + string(r.predecessorList.Nodes[i].Identifier[:]))
+	}
+
+	if !helpers.Equal(plhash, predecessorListHash) {
+		return nil, errors.New("ring:ForwardSync predecessor lists are not same")
+	}
+
+	hash := helpers.Hash(string(newData))
+	// check if hash ∈ (c.predecessor[DBREPLICAS+1], c.predecessor] because it's coming from predecessor
+	if !helpers.BetweenR(hash, r.predecessorList.Nodes[DBREPLICAS+1].Identifier, r.predecessor.Identifier) {
+		log.Debugf("ring: ForwardSync data hash is not between %x and %x , hash: %x", r.predecessor.Identifier, r.localNode.Identifier, hash)
+		// reject storing values which current node is not responsible for
+		return nil, errors.New("hash is not between")
+	}
+
+	// all data in this range ∈ (r.predecessorList[DBREPLICAS + 1], r.predecessor.Identifier]
+	allKeysInRange := r.dstore.GetRange(r.predecessorList.Nodes[DBREPLICAS+1].Identifier, r.predecessor.Identifier)
+
+	if len(allKeysInRange) == 0 {
+		log.Debugf("ring: ForwardSync Current node: %x", r.localNode.Identifier)
+		r.dstore.Put(hash, newData)
+		return nil, nil
+	}
+	var list []merkle.Content
+	//Build list of Content to build tree
+	for _, value := range allKeysInRange {
+		list = append(list, merkle.TestContent{X: *value})
+	}
+	//Create a new Merkle Tree from the list of Content
+	tree, err := merkle.NewTree(list)
+	if err != nil {
+		log.Fatal(err)
+	}
+	diffs, dataToDelete, err := tree.Diffs(serializedData)
+	if err != nil {
+		log.Errorf("Data should be deleted: %+v", dataToDelete)
+		return nil, err
+	}
+	if dataToDelete != nil {
+		log.Debugf("Data should be deleted: %+v", dataToDelete)
+	}
+	if diffs != nil {
+		return diffs, nil
+	}
+	r.dstore.Put(hash, newData)
+	return nil, nil
 }
 
 func (r *Ring) GetPredecessor(caller *RemoteNode) *RemoteNode {
@@ -173,18 +329,21 @@ func (r *Ring) GetPredecessor(caller *RemoteNode) *RemoteNode {
 // Verbose prints successor,predecessor
 // Runs periodically
 func (r *Ring) Verbose() {
-	log.Debugf("Current Node: %s:%d:%x\n", r.localNode.IP, r.localNode.Port, r.localNode.Identifier)
-	if r.successor != nil {
-		log.Debugf("Current Node Successor: %s:%d:%x\n", r.successor.IP, r.successor.Port, r.successor.Identifier)
-	}
-	if r.predecessor != nil {
-		log.Debugf("Current Node Predecessor: %s:%d:%x\n", r.predecessor.IP, r.predecessor.Port, r.predecessor.Identifier)
-	}
-	for i := 0; i < len(r.successorList.Nodes); i++ {
-		log.Debugf("successorList %d: %x\n", i, r.successorList.Nodes[i].Identifier)
-	}
-	// for i := 1; i < len(r.FingerTable.Table); i++ {
-	// fmt.Printf("FingerTable %d: %s, %x\n", i, r.fingetTableDebug[i], c.FingerTable[i].Identifier)
+	// log.Debugf("Current Node: %s:%d:%x\n", r.localNode.IP, r.localNode.Port, r.localNode.Identifier)
+	// if r.successor != nil {
+	// 	log.Debugf("Current Node Successor: %s:%d:%x\n", r.successor.IP, r.successor.Port, r.successor.Identifier)
 	// }
-	log.Debugf("\n")
+	// if r.predecessor != nil {
+	// log.Debugf("Current Node Predecessor: %s:%d:%x\n", r.predecessor.IP, r.predecessor.Port, r.predecessor.Identifier)
+	// }
+	// for i := 0; i < len(r.successorList.Nodes); i++ {
+	// 	log.Debugf("successorList %d: %x\n", i, r.successorList.Nodes[i].Identifier)
+	// }
+	// for i := 0; i < len(r.predecessorList.Nodes); i++ {
+	// 	log.Debugf("predecessorList %d: %x\n", i, r.predecessorList.Nodes[i].Identifier)
+	// }
+	// for i := 1; i < len(r.fingerTable.Table); i++ {
+	// 	log.Debugf("FingerTable %d: %x\n", i, r.fingerTable.Table[i].Identifier)
+	// }
+	// log.Debugf("\n")
 }

@@ -9,6 +9,7 @@ import (
 	"github.com/mbrostami/chord"
 	chordGrpc "github.com/mbrostami/chord/grpc"
 	"github.com/mbrostami/chord/helpers"
+	"github.com/mbrostami/chord/merkle"
 	"github.com/patrickmn/go-cache"
 	log "github.com/sirupsen/logrus"
 	"google.golang.org/grpc"
@@ -71,6 +72,65 @@ func (rs *RemoteNodeSenderGrpc) Notify(remoteNode *chord.RemoteNode, localNode *
 		return errors.New("notify failed")
 	}
 	return nil
+}
+
+// Store store data in remote node
+func (rs *RemoteNodeSenderGrpc) Store(remoteNode *chord.RemoteNode, data []byte) bool {
+	client := rs.connect(remoteNode) // connect to the successor
+	content := &chordGrpc.Content{
+		Data: data,
+	}
+	result, _ := client.Store(context.Background(), content)
+	return result.Value
+}
+
+// GetPredecessorList predecessor's (predecessor list)
+func (rs *RemoteNodeSenderGrpc) GetPredecessorList(remoteNode *chord.RemoteNode, localNode *chord.Node) (*chord.PredecessorList, error) {
+	// prepare kind of timeout to replace disconnected nodes
+	client := rs.connect(remoteNode)
+
+	nodeList, err := client.GetPredecessorList(context.Background(), chordGrpc.ConvertToGrpcNode(localNode))
+	if err != nil {
+		log.Errorf("Remote GetStablizerData failed: %+v \n", err)
+		return nil, err
+	}
+	// map grpc nodes to chord.predecessor list
+	predecessorList := chordGrpc.ConvertToChordPredecessorList(nodeList.Nodes, rs)
+	return predecessorList, nil
+}
+
+// ForwardSync sync data with remote node
+func (rs *RemoteNodeSenderGrpc) ForwardSync(remoteNode *chord.RemoteNode, plHash [helpers.HashSize]byte, data []byte, tree *merkle.MerkleTree) (*merkle.MerkleTree, error) {
+	// prepare kind of timeout to replace disconnected nodes
+	client := rs.connect(remoteNode)
+
+	forwardSync := &chordGrpc.ForwardSyncData{
+		Data:                data,
+		PredecessorListHash: plHash[:],
+	}
+	grpcMerkleTree := &chordGrpc.MerkleTree{
+		RootHash: tree.MerkleRoot(),
+	}
+	for _, node := range tree.GetSerializedTree() {
+		grpcMerkleTree.Nodes = append(grpcMerkleTree.Nodes, &chordGrpc.MerkleNode{
+			Hash:  node.Hash,
+			Right: node.Right,
+			Left:  node.Left,
+		})
+	}
+	forwardSync.MerkleTree = grpcMerkleTree
+	receivedForwardSync, err := client.ForwardSync(context.Background(), forwardSync)
+	if err != nil {
+		log.Errorf("ForwardSync failed: %+v \n", err)
+		return nil, err
+	}
+	if receivedForwardSync.MerkleTree == nil {
+		// means stored in remote node
+		return nil, nil
+	}
+	log.Debugf("remote response tree %+v", receivedForwardSync.MerkleTree.Nodes)
+	// find missing items and store on remote node
+	return nil, errors.New("Remote node has not the same tree")
 }
 
 // Ping check if remote port is open - using to check predecessor state

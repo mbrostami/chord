@@ -9,6 +9,7 @@ import (
 	"github.com/mbrostami/chord"
 	chordGrpc "github.com/mbrostami/chord/grpc"
 	"github.com/mbrostami/chord/helpers"
+	"github.com/mbrostami/chord/merkle"
 	log "github.com/sirupsen/logrus"
 	grpc "google.golang.org/grpc"
 )
@@ -57,4 +58,58 @@ func (s *ChordGrpcReceiver) FindSuccessor(ctx context.Context, lookup *chordGrpc
 		return nil, errors.New("successor is null")
 	}
 	return chordGrpc.ConvertToGrpcNode(successor.Node), nil
+}
+
+// Store store data in database
+func (s *ChordGrpcReceiver) Store(ctx context.Context, content *chordGrpc.Content) (*wrappers.BoolValue, error) {
+	stored := s.ring.Store(content.Data)
+	result := &wrappers.BoolValue{
+		Value: stored,
+	}
+	return result, nil
+}
+
+// GetPredecessorList get predecessor list
+func (s *ChordGrpcReceiver) GetPredecessorList(ctx context.Context, caller *chordGrpc.Node) (*chordGrpc.Nodes, error) {
+	pList := s.ring.GetPredecessorList(chordGrpc.ConvertToChordNode(caller))
+	nodes := &chordGrpc.Nodes{
+		Nodes: chordGrpc.ConvertToGrpcPredecessorList(pList),
+	}
+	return nodes, nil
+}
+
+// ForwardSync sync data from predecessor call
+func (s *ChordGrpcReceiver) ForwardSync(ctx context.Context, syncData *chordGrpc.ForwardSyncData) (*chordGrpc.ForwardSyncData, error) {
+
+	var serializedNodes []*merkle.SerializedNode
+	for i := 0; i < len(syncData.MerkleTree.Nodes); i++ {
+		serializedNode := &merkle.SerializedNode{
+			Hash: syncData.MerkleTree.Nodes[i].Hash,
+		}
+		serializedNodes = append(serializedNodes, serializedNode)
+	}
+	var identifier [helpers.HashSize]byte
+	copy(identifier[:helpers.HashSize], syncData.PredecessorListHash[:helpers.HashSize])
+
+	diffNodes, err := s.ring.ForwardSync(syncData.Data, identifier, serializedNodes)
+	if err != nil {
+		log.Error("receiver.ForwardSync: forward sync failed! %v", err)
+		return nil, err
+	}
+	if diffNodes == nil {
+		// replicated successfully
+		return nil, nil
+	}
+	// there are some diffs in merkle tree which are not synced
+
+	grpcMerkleTree := &chordGrpc.MerkleTree{}
+	for _, node := range diffNodes {
+		grpcMerkleTree.Nodes = append(grpcMerkleTree.Nodes, &chordGrpc.MerkleNode{
+			Hash: node.Hash,
+		})
+	}
+	responseSyncData := &chordGrpc.ForwardSyncData{
+		MerkleTree: grpcMerkleTree,
+	}
+	return responseSyncData, nil
 }

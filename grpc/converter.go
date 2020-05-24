@@ -35,3 +35,23 @@ func ConvertToChordSuccessorList(nlist []*Node, remoteSender chord.RemoteNodeSen
 	}
 	return nodes
 }
+
+// ConvertToGrpcPredecessorList change chord Predecessor list to grpc nodes
+func ConvertToGrpcPredecessorList(slist *chord.PredecessorList) []*Node {
+	nodes := []*Node{}
+	if slist != nil {
+		for i := 0; i < len(slist.Nodes); i++ { // keep sorts
+			nodes = append(nodes, ConvertToGrpcNode(slist.Nodes[i].Node))
+		}
+	}
+	return nodes
+}
+
+// ConvertToChordPredecessorList change grpc nodes to chord Predecessor list
+func ConvertToChordPredecessorList(nlist []*Node, remoteSender chord.RemoteNodeSenderInterface) *chord.PredecessorList {
+	nodes := chord.NewPredecessorList()
+	for i := 0; i < len(nlist); i++ { // keep sorted
+		nodes.Nodes[i] = chord.NewRemoteNode(chord.NewNode(nlist[i].IP, uint(nlist[i].Port)), remoteSender)
+	}
+	return nodes
+}

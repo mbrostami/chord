@@ -4,6 +4,19 @@ import (
 	"math/big"
 )
 
+// Equal check a == b
+func Equal(sourceHash [HashSize]byte, destHash [HashSize]byte) bool {
+	a := new(big.Int)
+	b := new(big.Int)
+	a.SetBytes(sourceHash[:HashSize])
+	b.SetBytes(destHash[:HashSize])
+	// a == b == n
+	if a.Cmp(b) == 0 {
+		return true
+	}
+	return false
+}
+
 // BetweenR check n ∈ (a, b]
 func BetweenR(sourceHash [HashSize]byte, startHash [HashSize]byte, endHash [HashSize]byte) bool {
 	a := new(big.Int)

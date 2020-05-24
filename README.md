@@ -2,7 +2,7 @@
 
 # Chord
 https://pdos.csail.mit.edu/papers/ton:chord/paper-ton.pdf   
-
+https://arxiv.org/pdf/1502.06461.pdf
 
 # Storage 
 https://pdos.csail.mit.edu/papers/sit-phd-thesis.pdf    

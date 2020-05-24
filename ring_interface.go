@@ -1,6 +1,9 @@
 package chord
 
-import "github.com/mbrostami/chord/helpers"
+import (
+	"github.com/mbrostami/chord/helpers"
+	"github.com/mbrostami/chord/merkle"
+)
 
 //go:generate moq -out ring_interface_test.go . RingInterface
 
@@ -43,4 +46,14 @@ type RingInterface interface {
 	// FIXME should be cached
 	// ref E.1
 	GetStabilizerData(caller *Node) (predecessor *RemoteNode, successorList *SuccessorList)
+
+	// GetPredecessorList predecessor's (predecessor list)
+	GetPredecessorList(caller *Node) (predecessorList *PredecessorList)
+
+	// Store
+	// is being called periodically by predecessor or new node
+	// ref E.1
+	Store(data []byte) bool
+
+	ForwardSync(newData []byte, predecessorListHash [helpers.HashSize]byte, serializedData []*merkle.SerializedNode) ([]*merkle.SerializedNode, error)
 }

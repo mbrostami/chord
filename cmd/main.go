@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/mbrostami/chord"
+	"github.com/mbrostami/chord/helpers"
 	"github.com/mbrostami/chord/net"
 	log "github.com/sirupsen/logrus"
 )
@@ -49,7 +50,7 @@ func main() {
 	}
 	go func() {
 		for {
-			chordRing.FixFingers() // every 5 seconds
+			chordRing.FixFingers()
 			time.Sleep(1 * time.Second)
 		}
 	}()
@@ -69,6 +70,18 @@ func main() {
 		for {
 			chordRing.Verbose()
 			time.Sleep(5 * time.Second)
+		}
+	}()
+	go func() {
+		if *port == 0 {
+			i := 0
+			for {
+				i++
+				data := []byte("String:" + string(i))
+				remoteNodeToStore := chordRing.FindSuccessor(helpers.Hash(string(data)))
+				remoteNodeToStore.Store(data)
+				time.Sleep(10 * time.Second)
+			}
 		}
 	}()
 	var wg sync.WaitGroup

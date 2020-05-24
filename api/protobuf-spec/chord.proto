@@ -13,10 +13,34 @@ service Chord {
   rpc Notify(Node) returns (google.protobuf.BoolValue) {}
   rpc GetSuccessorList(google.protobuf.Empty) returns (Nodes) {}
   rpc GetStablizerData(Node) returns (StablizerData) {}
+  rpc GetPredecessorList(Node) returns (Nodes) {}
+  rpc Store(Content) returns (google.protobuf.BoolValue) {}
+  rpc ForwardSync(ForwardSyncData) returns (ForwardSyncData) {}
 }
 
 message Lookup {
   bytes Key = 1;
+}
+
+message MerkleNode {
+  bytes Hash = 1;
+  bytes Left = 2;
+  bytes Right = 3;
+}
+
+message MerkleTree {
+  repeated MerkleNode nodes = 1;
+  bytes rootHash = 2;
+}
+
+message ForwardSyncData {
+  bytes data = 1;
+  bytes predecessorListHash = 2;
+  MerkleTree merkleTree = 3;
+}
+
+message Content {
+  bytes data = 1;
 }
 
 message Node {

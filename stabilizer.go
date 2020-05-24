@@ -7,19 +7,21 @@ import (
 )
 
 type Stabilizer struct {
-	successorList *SuccessorList
+	successorList   *SuccessorList
+	predecessorList *PredecessorList
 }
 
-func NewStabilizer(successorList *SuccessorList) *Stabilizer {
+func NewStabilizer(successorList *SuccessorList, predecessorList *PredecessorList) *Stabilizer {
 	return &Stabilizer{
-		successorList: successorList,
+		successorList:   successorList,
+		predecessorList: predecessorList,
 	}
 }
 
-// Start keep successor, successor list and predecessor updated
+// StartSuccessorList keep successor, successor list and predecessor updated
 // Runs periodically
 // ref E.1 - E.3
-func (s *Stabilizer) Start(successor *RemoteNode, localNode *Node) (*RemoteNode, *SuccessorList, error) {
+func (s *Stabilizer) StartSuccessorList(successor *RemoteNode, localNode *Node) (*RemoteNode, *SuccessorList, error) {
 	successor, remotePredecessor, successorList := s.getSuccessorStablizerData(successor, localNode)
 
 	// if all successors failed, then skip stabilizer to run next time
@@ -34,6 +36,14 @@ func (s *Stabilizer) Start(successor *RemoteNode, localNode *Node) (*RemoteNode,
 		}
 	}
 	return successor, successorList, nil
+}
+
+// StartPredecessorList keep Predecessor, Predecessor list and predecessor updated
+// Runs periodically
+// ref E.1 - E.3
+func (s *Stabilizer) StartPredecessorList(predecessor *RemoteNode, localNode *Node) (*RemoteNode, *PredecessorList, error) {
+	predecessor, predecessorList := s.getPredecessorList(predecessor, localNode)
+	return predecessor, predecessorList, nil
 }
 
 // getSuccessorStablizerData get stabilizer data from successor
@@ -52,4 +62,22 @@ func (s *Stabilizer) getSuccessorStablizerData(successor *RemoteNode, localNode 
 		}
 	}
 	return successor, remotePredecessor, successorList
+}
+
+// getPredecessorList get predecessor list from predecessor
+// if predecessor is not available, replace it with the next available predecessor
+func (s *Stabilizer) getPredecessorList(predecessor *RemoteNode, localNode *Node) (*RemoteNode, *PredecessorList) {
+	predecessorList, err := predecessor.GetPredecessorList(localNode)
+	if err != nil {
+		// replace next available predecessor from predecessorList
+		for i := 1; i < len(s.predecessorList.Nodes); i++ {
+			remotNode := s.predecessorList.Nodes[i]
+			predecessorList, err = remotNode.GetPredecessorList(localNode)
+			if err == nil {
+				predecessor = remotNode
+				break
+			}
+		}
+	}
+	return predecessor, predecessorList
 }

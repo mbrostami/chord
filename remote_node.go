@@ -2,7 +2,7 @@ package chord
 
 import (
 	"github.com/mbrostami/chord/helpers"
-	log "github.com/sirupsen/logrus"
+	"github.com/mbrostami/chord/merkle"
 )
 
 type RemoteNode struct {
@@ -21,7 +21,7 @@ func NewRemoteNode(localNode *Node, remoteSender RemoteNodeSenderInterface) *Rem
 func (n *RemoteNode) FindSuccessor(identifier [helpers.HashSize]byte) (*RemoteNode, error) {
 	node, err := n.sender.FindSuccessor(n, identifier)
 	if err == nil {
-		log.Infof("got successor from remote node: %x succ() => %x\n", identifier, node.Identifier)
+		// log.Infof("got successor from remote node: %x succ() => %x\n", identifier, node.Identifier)
 	}
 	return NewRemoteNode(node, n.sender), err
 }
@@ -32,6 +32,22 @@ func (n *RemoteNode) FindSuccessor(identifier [helpers.HashSize]byte) (*RemoteNo
 func (n *RemoteNode) GetStablizerData(local *Node) (*RemoteNode, *SuccessorList, error) {
 	node, successorList, err := n.sender.GetStablizerData(n, local)
 	return NewRemoteNode(node, n.sender), successorList, err
+}
+
+// GetPredecessorList predecessor's (predecessor list)
+func (n *RemoteNode) GetPredecessorList(local *Node) (*PredecessorList, error) {
+	predecessorList, err := n.sender.GetPredecessorList(n, local)
+	return predecessorList, err
+}
+
+// Store store data on remote node
+func (n *RemoteNode) Store(data []byte) bool {
+	return n.sender.Store(n, data)
+}
+
+// ForwardSync sync local data missing on remote
+func (n *RemoteNode) ForwardSync(plHash [helpers.HashSize]byte, data []byte, tree *merkle.MerkleTree) (*merkle.MerkleTree, error) {
+	return n.sender.ForwardSync(n, plHash, data, tree)
 }
 
 // Notify update predecessor
