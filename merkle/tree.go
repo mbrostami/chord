@@ -215,16 +215,16 @@ func buildIntermediate(nl []*Node, t *MerkleTree) (*Node, error) {
 			Tree:  t,
 		}
 		nodes = append(nodes, n)
-		t.serializedTree = append(t.serializedTree, &SerializedNode{
-			Hash:  hash,
-			Left:  nl[left].Hash,
-			Right: nl[right].Hash,
-		})
 		nl[left].Parent = n
 		nl[right].Parent = n
 		if len(nl) == 2 {
 			return n, nil
 		}
+		t.serializedTree = append(t.serializedTree, &SerializedNode{
+			Hash:  hash,
+			Left:  nl[left].Hash,
+			Right: nl[right].Hash,
+		})
 	}
 	return buildIntermediate(nodes, t)
 }
@@ -320,6 +320,12 @@ func (m *MerkleTree) VerifyContent(content Content) (bool, error) {
 //Diffs returns diff serialized nodes with leafs
 func (m *MerkleTree) Diffs(serializedNodes []*SerializedNode) ([]*SerializedNode, []*Node, error) {
 	if len(m.Leafs) != len(serializedNodes) {
+		for i := 0; i < len(m.Leafs); i++ {
+			log.Debugf("leaf hash: %d : %x", i, m.Leafs[i].Hash)
+		}
+		for i := 0; i < len(serializedNodes); i++ {
+			log.Debugf("serialized node hash: %d : %x", i, serializedNodes[i].Hash)
+		}
 		log.Errorf("leafs are not in same number %d != %d", len(m.Leafs), len(serializedNodes))
 		return nil, nil, errors.New("leafs are not in same number")
 	}

@@ -206,6 +206,7 @@ func (r *Ring) Store(data []byte) bool {
 	}
 	// all data in this range ∈ (r.predecessorList[DBREPLICAS], r.localNode.Identifier]
 	allKeysInRange := r.dstore.GetRange(r.predecessorList.Nodes[DBREPLICAS].Identifier, r.localNode.Identifier)
+	log.Debugf("ring:Store db get all data from %x to %x", r.predecessorList.Nodes[DBREPLICAS].Identifier, r.localNode.Identifier)
 
 	if len(allKeysInRange) == 0 {
 		log.Debugf("Current node: %x", r.localNode.Identifier)
@@ -214,7 +215,10 @@ func (r *Ring) Store(data []byte) bool {
 	var list []merkle.Content
 	//Build list of Content to build tree
 	for _, value := range allKeysInRange {
-		list = append(list, merkle.TestContent{X: *value})
+		content := merkle.TestContent{X: *value}
+		hs, _ := content.CalculateHash()
+		log.Debugf("ring:store db keys making tree %x : %x", hs, *value)
+		list = append(list, content)
 	}
 	//Create a new Merkle Tree from the list of Content
 	tree, err := merkle.NewTree(list)
@@ -284,15 +288,20 @@ func (r *Ring) ForwardSync(newData []byte, predecessorListHash [helpers.HashSize
 
 	// all data in this range ∈ (r.predecessorList[DBREPLICAS + 1], r.predecessor.Identifier]
 	allKeysInRange := r.dstore.GetRange(r.predecessorList.Nodes[DBREPLICAS+1].Identifier, r.predecessor.Identifier)
+	log.Debugf("ring:forwardSync db get all data from %x to %x", r.predecessorList.Nodes[DBREPLICAS+1].Identifier, r.predecessor.Identifier)
 
 	if len(allKeysInRange) == 0 {
 		log.Debugf("ring: ForwardSync Current node: %x", r.localNode.Identifier)
+		// r.Store() can be used instead in order to have more replicas
 		r.dstore.Put(hash, newData)
 		return nil, nil
 	}
 	var list []merkle.Content
 	//Build list of Content to build tree
 	for _, value := range allKeysInRange {
+		content := merkle.TestContent{X: *value}
+		hs, _ := content.CalculateHash()
+		log.Debugf("ring:forwardSync db keys making tree %x : %x", hs, *value)
 		list = append(list, merkle.TestContent{X: *value})
 	}
 	//Create a new Merkle Tree from the list of Content
@@ -311,6 +320,7 @@ func (r *Ring) ForwardSync(newData []byte, predecessorListHash [helpers.HashSize
 	if diffs != nil {
 		return diffs, nil
 	}
+	// r.Store() can be used instead in order to have more replicas
 	r.dstore.Put(hash, newData)
 	return nil, nil
 }

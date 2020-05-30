@@ -1,0 +1,103 @@
+package tree
+
+import (
+	"sort"
+	"time"
+)
+
+type Merkle struct {
+	blocks       map[uint]*Block
+	blockIndexes []uint
+	sourceTime   time.Time
+	Root         [HashSize]byte
+	firstRow     *Row // to use for consistency
+	lastRow      *Row // to use for consistency
+	nodes        []*MerkleNode
+}
+
+func MakeMerkle(rows []*Row) *Merkle {
+	sourceTime := time.Now()
+	return MakeMerkleWithTime(rows, sourceTime)
+}
+
+func MakeMerkleWithTime(rows []*Row, sourceTime time.Time) *Merkle {
+	tree := &Merkle{
+		sourceTime: sourceTime,
+	}
+	blocks := make(map[uint]*Block)
+	for i := 0; i < len(rows); i++ {
+		// find min hash
+		if tree.firstRow == nil {
+			tree.firstRow = rows[i]
+		} else if BytesLessThan(rows[i].Hash, tree.firstRow.Hash) {
+			tree.firstRow = rows[i]
+		}
+
+		// find max hash
+		if tree.lastRow == nil {
+			tree.lastRow = rows[i]
+		} else if BytesLessThan(tree.lastRow.Hash, rows[i].Hash) {
+			tree.lastRow = rows[i]
+		}
+
+		blockIndex := CalculateBlockIndex(sourceTime, rows[i].CreationTime)
+		if blocks[blockIndex] == nil {
+			blocks[blockIndex] = MakeBlock(sourceTime, blockIndex)
+			tree.blockIndexes = append(tree.blockIndexes, blockIndex)
+		}
+		blocks[blockIndex].Append(rows[i])
+	}
+	sort.Slice(tree.blockIndexes, func(i, j int) bool { return tree.blockIndexes[i] < tree.blockIndexes[j] })
+
+	tree.blocks = blocks
+	tree.makeLeafs()
+	tree.makeBranches(tree.nodes, 1)
+	tree.Root = tree.nodes[len(tree.nodes)-1].hash
+
+	return tree
+}
+
+func (m *Merkle) makeLeafs() {
+	level := 0
+	// use sorted indexes
+	for _, blockIndex := range m.blockIndexes {
+		block := m.blocks[blockIndex]
+		leafNode := &MerkleNode{
+			Level: level,
+			hash:  *block.Hash,
+		}
+		m.nodes = append(m.nodes, leafNode)
+	}
+
+	if len(m.nodes)%2 == 1 {
+		leafNode := &MerkleNode{
+			Level: level,
+			hash:  m.nodes[len(m.nodes)-1].hash, // last item should be duplicated
+		}
+		m.nodes = append(m.nodes, leafNode)
+	}
+}
+
+func (m *Merkle) makeBranches(nodelist []*MerkleNode, level int) {
+	var updatedNodeList []*MerkleNode
+	for i := 0; i < len(nodelist); i += 2 {
+		leftIndex := i
+		rightIndex := i + 1
+		if rightIndex == len(nodelist) { // last node, so duplicate that
+			rightIndex = i
+		}
+		contatinatedHash := append(nodelist[leftIndex].hash[:], nodelist[rightIndex].hash[:]...)
+		hash := Hash(contatinatedHash)
+		branch := &MerkleNode{
+			Level: level,
+			hash:  hash,
+			Left:  nodelist[leftIndex],
+			Right: nodelist[rightIndex],
+		}
+		updatedNodeList = append(updatedNodeList, branch)
+		m.nodes = append(m.nodes, branch)
+	}
+	if len(updatedNodeList) > 1 {
+		m.makeBranches(updatedNodeList, level+1)
+	}
+}
