@@ -1,5 +1,6 @@
 package tree
 
+// MerkleNode used as leafs/branches/root nodes in merkle tree
 type MerkleNode struct {
 	Level int
 	hash  [HashSize]byte
@@ -7,7 +8,7 @@ type MerkleNode struct {
 	Right *MerkleNode
 }
 
-// GetHash returns the node hash
+// GetHash returns the merkle node hash
 func (mn *MerkleNode) GetHash() [HashSize]byte {
 	return mn.hash
 }

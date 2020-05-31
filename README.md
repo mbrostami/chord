@@ -8,7 +8,11 @@ https://arxiv.org/pdf/1502.06461.pdf
 https://pdos.csail.mit.edu/papers/sit-phd-thesis.pdf    
 OpenDHT   
 
-
+# Merkle Tree
+Custom implementation of merkle tree   
+By using records creation timestamp, we make a dynamic sized blocks to finally make merkle tree  
+First block can contain many records with the short lifetime, as the block number increases  
+the number of records in block increases and holds older data. 
 
 # TODO
 -[] use https://github.com/grpc/grpc/blob/master/doc/health-checking.md instead of ping  

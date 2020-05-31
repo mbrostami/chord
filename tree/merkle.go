@@ -13,6 +13,7 @@ type Merkle struct {
 	firstRow     *Row // to use for consistency
 	lastRow      *Row // to use for consistency
 	nodes        []*MerkleNode
+	blockHashes  [][HashSize]byte
 }
 
 func MakeMerkle(rows []*Row) *Merkle {
@@ -26,40 +27,45 @@ func MakeMerkleWithTime(rows []*Row, sourceTime time.Time) *Merkle {
 	}
 	blocks := make(map[uint]*Block)
 	for i := 0; i < len(rows); i++ {
-		// find min hash
+		// find smallest hash
 		if tree.firstRow == nil {
 			tree.firstRow = rows[i]
 		} else if BytesLessThan(rows[i].Hash, tree.firstRow.Hash) {
 			tree.firstRow = rows[i]
 		}
 
-		// find max hash
+		// find largest hash
 		if tree.lastRow == nil {
 			tree.lastRow = rows[i]
 		} else if BytesLessThan(tree.lastRow.Hash, rows[i].Hash) {
 			tree.lastRow = rows[i]
 		}
 
+		// find block number based on creation time of the row record
 		blockIndex := CalculateBlockIndex(sourceTime, rows[i].CreationTime)
 		if blocks[blockIndex] == nil {
 			blocks[blockIndex] = MakeBlock(sourceTime, blockIndex)
 			tree.blockIndexes = append(tree.blockIndexes, blockIndex)
 		}
+		// add record to the block and recalculate the block hash
 		blocks[blockIndex].Append(rows[i])
 	}
+	// sort block numbers, cause we need to keep order of the blocks while making merkle tree
 	sort.Slice(tree.blockIndexes, func(i, j int) bool { return tree.blockIndexes[i] < tree.blockIndexes[j] })
 
 	tree.blocks = blocks
 	tree.makeLeafs()
 	tree.makeBranches(tree.nodes, 1)
+	// last node in the tree is considered as root node/hash
 	tree.Root = tree.nodes[len(tree.nodes)-1].hash
 
 	return tree
 }
 
+// makeLeafs make merkle leafs based on blocks
 func (m *Merkle) makeLeafs() {
 	level := 0
-	// use sorted indexes
+	// use sorted block indexes to make leaf nodes in merkle tree
 	for _, blockIndex := range m.blockIndexes {
 		block := m.blocks[blockIndex]
 		leafNode := &MerkleNode{
@@ -67,8 +73,10 @@ func (m *Merkle) makeLeafs() {
 			hash:  *block.Hash,
 		}
 		m.nodes = append(m.nodes, leafNode)
+		m.blockHashes = append(m.blockHashes, leafNode.hash)
 	}
 
+	// number of leaf nodes must be even, if it's odd, then duplicate the last node
 	if len(m.nodes)%2 == 1 {
 		leafNode := &MerkleNode{
 			Level: level,
@@ -78,12 +86,14 @@ func (m *Merkle) makeLeafs() {
 	}
 }
 
+// makeBranches make upper level branches in merkle tree using created leaf nodes
 func (m *Merkle) makeBranches(nodelist []*MerkleNode, level int) {
 	var updatedNodeList []*MerkleNode
 	for i := 0; i < len(nodelist); i += 2 {
 		leftIndex := i
 		rightIndex := i + 1
-		if rightIndex == len(nodelist) { // last node, so duplicate that
+		// last node, so duplicate that
+		if rightIndex == len(nodelist) {
 			rightIndex = i
 		}
 		contatinatedHash := append(nodelist[leftIndex].hash[:], nodelist[rightIndex].hash[:]...)
@@ -97,7 +107,12 @@ func (m *Merkle) makeBranches(nodelist []*MerkleNode, level int) {
 		updatedNodeList = append(updatedNodeList, branch)
 		m.nodes = append(m.nodes, branch)
 	}
+	// if it's not the last node then calculate next level, until 1 node remains which is root node (root hash)
 	if len(updatedNodeList) > 1 {
 		m.makeBranches(updatedNodeList, level+1)
 	}
+}
+
+func (m *Merkle) Serialize() {
+
 }
