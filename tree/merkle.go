@@ -10,8 +10,8 @@ type Merkle struct {
 	blockIndexes []uint
 	sourceTime   time.Time
 	Root         [HashSize]byte
-	firstRow     *Row // to use for consistency
-	lastRow      *Row // to use for consistency
+	firstRow     *Row
+	lastRow      *Row
 	nodes        []*MerkleNode
 	blockHashes  [][HashSize]byte
 }
@@ -62,7 +62,16 @@ func MakeMerkleWithTime(rows []*Row, sourceTime time.Time) *Merkle {
 	return tree
 }
 
-// makeLeafs make merkle leafs based on blocks
+// GetNodes return nodes in tree
+func (m *Merkle) GetNodes() []*MerkleNode {
+	return m.nodes
+}
+
+// GetBlocks return blocks in tree
+func (m *Merkle) GetBlocks() map[uint]*Block {
+	return m.blocks
+}
+
 func (m *Merkle) makeLeafs() {
 	level := 0
 	// use sorted block indexes to make leaf nodes in merkle tree
@@ -111,8 +120,4 @@ func (m *Merkle) makeBranches(nodelist []*MerkleNode, level int) {
 	if len(updatedNodeList) > 1 {
 		m.makeBranches(updatedNodeList, level+1)
 	}
-}
-
-func (m *Merkle) Serialize() {
-
 }

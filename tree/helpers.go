@@ -19,6 +19,11 @@ func Hash(data []byte) [HashSize]byte {
 // CalculateBlockIndex calculate log2(source time - creation time) to use as block number
 func CalculateBlockIndex(source time.Time, ctime time.Time) uint {
 	duration := source.Sub(ctime)
+	log2 := math.Round(math.Log2(duration.Seconds()))
+	// if log2 duration is < 0, then we can consider that durations is less than 1 seconds so we use block number 0
+	if log2 < 0 {
+		return 0
+	}
 	// round log2 output to make an integer block number
 	return uint(math.Round(math.Log2(duration.Seconds())))
 }

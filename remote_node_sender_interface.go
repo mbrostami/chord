@@ -5,7 +5,7 @@ import (
 	"github.com/mbrostami/chord/merkle"
 )
 
-//go:generate moq -out remote_node_sender_interface_test.go . RemoteSenderInterface
+//go:generate moq -out remote_node_sender_interface_test.go . RemoteNodeSenderInterface
 
 // RemoteNodeSenderInterface interface for client adapter
 type RemoteNodeSenderInterface interface {

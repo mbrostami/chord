@@ -29,6 +29,10 @@ func BetweenR(sourceHash [HashSize]byte, startHash [HashSize]byte, endHash [Hash
 	if a.Cmp(b) == 0 && b.Cmp(n) == 0 {
 		return true
 	}
+	// a == b != n
+	if a.Cmp(b) == 0 {
+		return false
+	}
 	// a < b
 	if a.Cmp(b) == -1 {
 		// a < n <= b
