@@ -14,8 +14,13 @@ service Chord {
   rpc GetSuccessorList(google.protobuf.Empty) returns (Nodes) {}
   rpc GetStablizerData(Node) returns (StablizerData) {}
   rpc GetPredecessorList(Node) returns (Nodes) {}
+  rpc GlobalMaintenance(Replication) returns (Replication) {}
   rpc Store(Content) returns (google.protobuf.BoolValue) {}
   rpc ForwardSync(ForwardSyncData) returns (ForwardSyncData) {}
+}
+
+message Replication {
+  bytes Data = 1;
 }
 
 message Lookup {

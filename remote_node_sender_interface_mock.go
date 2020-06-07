@@ -30,3 +30,6 @@ func (m MockRemoteNodeSenderInterface) ForwardSync(remote *RemoteNode, plHash [h
 func (m MockRemoteNodeSenderInterface) GetPredecessorList(remote *RemoteNode, local *Node) (*PredecessorList, error) {
 	return nil, nil
 }
+func (m MockRemoteNodeSenderInterface) GlobalMaintenance(remote *RemoteNode, data []byte) ([]byte, error) {
+	return nil, nil
+}

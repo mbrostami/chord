@@ -7,7 +7,7 @@ import (
 // Block dynamic size block contains rows with the same round(log2(lifetime))
 type Block struct {
 	index      *uint
-	rows       []*Row
+	Rows       []*Row
 	sourceTime time.Time
 	Hash       *[HashSize]byte
 }
@@ -23,7 +23,7 @@ func MakeBlock(sourceTime time.Time, index uint) *Block {
 
 // GetSize returns the block size
 func (b *Block) GetSize() int {
-	return len(b.rows)
+	return len(b.Rows)
 }
 
 // GetIndex returns the block index
@@ -33,7 +33,7 @@ func (b *Block) GetIndex() uint {
 
 // Append pushes new row to the end of the list and update the block hash
 func (b *Block) Append(row *Row) {
-	b.rows = append(b.rows, row)
+	b.Rows = append(b.Rows, row)
 	// Make new hash (prev hash + new row hash)
 	if b.Hash == nil {
 		hash := Hash(row.Hash[:])

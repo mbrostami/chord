@@ -39,7 +39,7 @@ func TestMakeBlocksWithExistingTime(t *testing.T) {
 
 	tree := MakeMerkleWithTime(rows, now)
 
-	for index, block := range tree.blocks {
+	for index, block := range tree.Blocks {
 		if index == blockID1 {
 			if blockHash1 != *block.Hash {
 				t.Errorf("Hash values are not same %d expected %x, got %x", blockID1, blockHash1, *block.Hash)
@@ -93,10 +93,10 @@ func TestMakeBlocksDataInSameBlockWithExistingTime(t *testing.T) {
 	if !BytesEqual(tree.lastRow.Hash, hash3) {
 		t.Errorf("Last hash expected to be %x, got %x", hash3, tree.lastRow.Hash)
 	}
-	if len(tree.blocks) != 2 {
-		t.Errorf("Expected to have 2 blocks got %d", len(tree.blocks))
+	if len(tree.Blocks) != 2 {
+		t.Errorf("Expected to have 2 blocks got %d", len(tree.Blocks))
 	}
-	for index, block := range tree.blocks {
+	for index, block := range tree.Blocks {
 		if index == blockID12 {
 			if blockHash12 != *block.Hash {
 				t.Errorf("Hash values are not same %d expected %x, got %x", blockID12, blockHash12, *block.Hash)
@@ -141,10 +141,10 @@ func TestMakeBlocksDataInSameBlock(t *testing.T) {
 	blockID12 := CalculateBlockIndex(now, tree.sourceTime)
 	blockID3 := CalculateBlockIndex(now, tree.sourceTime)
 
-	if len(tree.blocks) != 2 {
-		t.Errorf("Expected to have 2 blocks got %d", len(tree.blocks))
+	if len(tree.Blocks) != 2 {
+		t.Errorf("Expected to have 2 blocks got %d", len(tree.Blocks))
 	}
-	for index, block := range tree.blocks {
+	for index, block := range tree.Blocks {
 		if index == blockID12 {
 			if blockHash12 != *block.Hash {
 				t.Errorf("Hash values are not same %d expected %x, got %x", blockID12, blockHash12, *block.Hash)
@@ -192,7 +192,7 @@ func TestMakeBlocksOldCreationTime(t *testing.T) {
 
 	tree := MakeMerkleWithTime(rows, now)
 
-	for index, block := range tree.blocks {
+	for index, block := range tree.Blocks {
 		if index == blockID2 && index == blockID3 {
 			if blockHash23 != *block.Hash {
 				t.Errorf("Hash values are not same %d expected %x, got %x", blockID2, blockHash23, *block.Hash)
@@ -237,27 +237,27 @@ func TestMakeLeafs(t *testing.T) {
 	tree := MakeMerkleWithTime(rows, now)
 
 	// 2 leafs + root
-	if len(tree.nodes) != 3 {
-		t.Errorf("Number of nodes expected %d, got %d", 3, len(tree.nodes))
+	if len(tree.Nodes) != 3 {
+		t.Errorf("Number of nodes expected %d, got %d", 3, len(tree.Nodes))
 	}
-	for index, node := range tree.nodes {
+	for index, node := range tree.Nodes {
 		if node.Level == 0 {
 			if index == 0 {
-				if node.hash != blockHash1 {
-					t.Errorf("Leaf nodes are not valid, expected %x, got %x", blockHash1, node.hash)
+				if node.Hash != blockHash1 {
+					t.Errorf("Leaf nodes are not valid, expected %x, got %x", blockHash1, node.Hash)
 				}
 			} else if index == 1 {
-				if node.hash != blockHash23 {
-					t.Errorf("Leaf nodes are not valid, expected %x, got %x", blockHash23, node.hash)
+				if node.Hash != blockHash23 {
+					t.Errorf("Leaf nodes are not valid, expected %x, got %x", blockHash23, node.Hash)
 				}
 			}
 		} else if node.Level == 1 { // root
 			rootHash := Hash(append(blockHash1[:], blockHash23[:]...))
-			if node.hash != rootHash {
-				t.Errorf("Root hash is not valid expected %x, got %x", rootHash, node.hash)
+			if node.Hash != rootHash {
+				t.Errorf("Root hash is not valid expected %x, got %x", rootHash, node.Hash)
 			}
-			if node.hash != tree.Root {
-				t.Errorf("Root hash is not the same as last level node hash %x != %x", tree.Root, node.hash)
+			if node.Hash != tree.Root {
+				t.Errorf("Root hash is not the same as last level node hash %x != %x", tree.Root, node.Hash)
 			}
 		}
 	}

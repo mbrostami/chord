@@ -6,7 +6,6 @@ import (
 	"time"
 
 	"github.com/mbrostami/chord"
-	"github.com/mbrostami/chord/helpers"
 	"github.com/mbrostami/chord/net"
 	log "github.com/sirupsen/logrus"
 )
@@ -77,10 +76,21 @@ func main() {
 			i := 0
 			for {
 				i++
-				data := []byte("String:" + string(i))
-				remoteNodeToStore := chordRing.FindSuccessor(helpers.Hash(string(data)))
-				remoteNodeToStore.Store(data)
+				record := &chord.Record{
+					CreationTime: time.Now(),
+					Content:      []byte("String:" + string(i)),
+				}
+				remoteNodeToStore := chordRing.FindSuccessor(record.Hash())
+				remoteNodeToStore.Store(record.GetJson())
 				time.Sleep(10 * time.Second)
+			}
+		}
+	}()
+	go func() {
+		if *port == 0 {
+			for {
+				chordRing.SyncData()
+				time.Sleep(5 * time.Second)
 			}
 		}
 	}()

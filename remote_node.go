@@ -63,3 +63,7 @@ func (n *RemoteNode) Notify(local *Node) error {
 func (n *RemoteNode) Ping() bool {
 	return n.sender.Ping(n)
 }
+
+func (n *RemoteNode) GlobalMaintenance(data []byte) ([]byte, error) {
+	return n.sender.GlobalMaintenance(n, data)
+}

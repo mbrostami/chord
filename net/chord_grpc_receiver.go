@@ -78,6 +78,12 @@ func (s *ChordGrpcReceiver) GetPredecessorList(ctx context.Context, caller *chor
 	return nodes, nil
 }
 
+// GlobalMaintenance to sync data from predecessor
+func (s *ChordGrpcReceiver) GlobalMaintenance(ctx context.Context, replicationRequest *chordGrpc.Replication) (*chordGrpc.Replication, error) {
+	replicationResponse, err := s.ring.GlobalMaintenance(replicationRequest.Data)
+	return &chordGrpc.Replication{Data: replicationResponse}, err
+}
+
 // ForwardSync sync data from predecessor call
 func (s *ChordGrpcReceiver) ForwardSync(ctx context.Context, syncData *chordGrpc.ForwardSyncData) (*chordGrpc.ForwardSyncData, error) {
 

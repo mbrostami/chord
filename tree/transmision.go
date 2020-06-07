@@ -14,10 +14,10 @@ type JSONNode struct {
 // Serialize serialize data
 func Serialize(tree Merkle) ([]byte, error) {
 	var jsonNodes []JSONNode
-	for i := 0; i < len(tree.nodes); i++ {
+	for i := 0; i < len(tree.Nodes); i++ {
 		jsonNodes = append(jsonNodes, JSONNode{
-			Level: tree.nodes[i].Level,
-			Hash:  tree.nodes[i].hash,
+			Level: tree.Nodes[i].Level,
+			Hash:  tree.Nodes[i].Hash,
 		})
 	}
 	return json.Marshal(jsonNodes)
@@ -37,7 +37,7 @@ func GetMissingHashesInTree(jsonData []byte, tree Merkle) ([]byte, error) {
 	if len(jsonNodes) == 0 {
 		return nil, errors.New("there is no data to compare")
 	}
-	if len(jsonNodes) != len(tree.nodes) {
+	if len(jsonNodes) != len(tree.Nodes) {
 		return getMissingsInTreeLeafs(jsonNodes, tree)
 	}
 	// to keep using serialize, unserialize we need to use jsonnode instead of simple hash
@@ -52,7 +52,7 @@ func GetMissingHashesInTree(jsonData []byte, tree Merkle) ([]byte, error) {
 			return nil, nil
 		}
 		lastLevel = jsonNodes[i].Level
-		if !BytesEqual(tree.nodes[i].hash, jsonNodes[i].Hash) || tree.nodes[i].Level != jsonNodes[i].Level {
+		if !BytesEqual(tree.Nodes[i].Hash, jsonNodes[i].Hash) || tree.Nodes[i].Level != jsonNodes[i].Level {
 			hasDiff = true
 			// only leaf nodes considered as diffBlockNodes
 			if jsonNodes[i].Level == 0 {
@@ -62,7 +62,7 @@ func GetMissingHashesInTree(jsonData []byte, tree Merkle) ([]byte, error) {
 		}
 		// at the same time, remove diffs which are already exist in tree, but have different order
 		for index, blockNode := range diffBlockNodes {
-			if BytesEqual(tree.nodes[i].hash, blockNode.Hash) {
+			if BytesEqual(tree.Nodes[i].Hash, blockNode.Hash) {
 				// remove diff
 				//fmt.Printf("removing diff %x\n", blockNode.Hash)
 				diffBlockNodes = append(diffBlockNodes[:index], diffBlockNodes[index+1:]...)

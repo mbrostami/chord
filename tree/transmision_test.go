@@ -35,11 +35,11 @@ func TestSerializeUnserialize(t *testing.T) {
 		t.Errorf("Number of nodes are expected %d got %d", 7, len(jsonNodes))
 	}
 	for i := 0; i < len(jsonNodes); i++ {
-		if !BytesEqual(tree.nodes[i].hash, jsonNodes[i].Hash) {
-			t.Errorf("Mismatch merkle tree hash with unserialized node hash expected %x got %x", tree.nodes[i].hash, jsonNodes[i].Hash)
+		if !BytesEqual(tree.Nodes[i].Hash, jsonNodes[i].Hash) {
+			t.Errorf("Mismatch merkle tree hash with unserialized node hash expected %x got %x", tree.Nodes[i].Hash, jsonNodes[i].Hash)
 		}
-		if tree.nodes[i].Level != jsonNodes[i].Level {
-			t.Errorf("Mismatch merkle tree level with unserialized node level expected %x got %x", tree.nodes[i].Level, jsonNodes[i].Level)
+		if tree.Nodes[i].Level != jsonNodes[i].Level {
+			t.Errorf("Mismatch merkle tree level with unserialized node level expected %x got %x", tree.Nodes[i].Level, jsonNodes[i].Level)
 		}
 	}
 	rootHash := jsonNodes[len(jsonNodes)-1].Hash

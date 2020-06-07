@@ -150,6 +150,21 @@ func (rs *RemoteNodeSenderGrpc) Ping(remoteNode *chord.RemoteNode) bool {
 	return false
 }
 
+func (rs *RemoteNodeSenderGrpc) GlobalMaintenance(remoteNode *chord.RemoteNode, data []byte) ([]byte, error) {
+	// prepare kind of timeout to replace disconnected nodes
+	client := rs.connect(remoteNode)
+
+	replicationRequest := &chordGrpc.Replication{
+		Data: data,
+	}
+	replicationResponse, err := client.GlobalMaintenance(context.Background(), replicationRequest)
+	if err != nil {
+		log.Errorf("Remote GlobalMaintenance failed: %+v \n", err)
+		return nil, err
+	}
+	return replicationResponse.Data, nil
+}
+
 // Connect grpc connect to remote node
 func (rs *RemoteNodeSenderGrpc) connect(remoteNode *chord.RemoteNode) chordGrpc.ChordClient {
 	addr := remoteNode.GetFullAddress()

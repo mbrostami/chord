@@ -1,6 +1,9 @@
 package chord
 
 import (
+	"encoding/json"
+	"time"
+
 	log "github.com/sirupsen/logrus"
 
 	"github.com/mbrostami/chord/helpers"
@@ -19,17 +22,48 @@ func NewDStore() *DStore {
 	}
 }
 
-func (d *DStore) Put(key [helpers.HashSize]byte, value []byte) bool {
-	log.Debugf("storing data %x: %v", key, value)
-	d.db[key] = &value
+type Record struct {
+	CreationTime time.Time `json:"creation_time"`
+	Content      []byte    `json:"content"`
+}
+
+func (r *Record) Hash() [helpers.HashSize]byte {
+	json, _ := json.Marshal(r)
+	return helpers.Hash(string(json))
+}
+
+func (r *Record) GetJson() []byte {
+	json, _ := json.Marshal(r)
+	return json
+}
+
+func (d *DStore) Put(value []byte) bool {
+	record := Record{
+		CreationTime: time.Now(),
+		Content:      value,
+	}
+	json, _ := json.Marshal(record)
+	key := helpers.Hash(string(json))
+	log.Debugf("storing data %x: %v", key, json)
+	d.db[key] = &json
 	return true
 }
 
-func (d *DStore) GetRange(fromKey [helpers.HashSize]byte, toKey [helpers.HashSize]byte) map[[helpers.HashSize]byte]*[]byte {
-	data := make(map[[helpers.HashSize]byte]*[]byte)
+func (d *DStore) PutRecord(record Record) bool {
+	json, _ := json.Marshal(record)
+	key := helpers.Hash(string(json))
+	log.Debugf("storing data %x: %v", key, json)
+	d.db[key] = &json
+	return true
+}
+
+func (d *DStore) GetRange(fromKey [helpers.HashSize]byte, toKey [helpers.HashSize]byte) map[[helpers.HashSize]byte]*Record {
+	data := make(map[[helpers.HashSize]byte]*Record)
 	for key, item := range d.db {
 		if helpers.BetweenR(key, fromKey, toKey) {
-			data[key] = item
+			record := Record{}
+			json.Unmarshal(*item, &record)
+			data[key] = &record
 		}
 	}
 	return data

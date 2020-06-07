@@ -28,6 +28,8 @@ type RemoteNodeSenderInterface interface {
 	// ref E.1
 	Ping(remote *RemoteNode) bool
 
+	GlobalMaintenance(remote *RemoteNode, data []byte) ([]byte, error)
+
 	// Store store data in remote node
 	Store(remote *RemoteNode, data []byte) bool
 

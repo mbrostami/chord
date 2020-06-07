@@ -50,6 +50,9 @@ type RingInterface interface {
 	// GetPredecessorList predecessor's (predecessor list)
 	GetPredecessorList(caller *Node) (predecessorList *PredecessorList)
 
+	SyncData() error
+	GlobalMaintenance(data []byte) ([]byte, error)
+
 	// Store
 	// is being called periodically by predecessor or new node
 	// ref E.1
