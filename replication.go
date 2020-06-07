@@ -58,7 +58,7 @@ func (r *Replication) MakeTreesWithData(data map[[helpers.HashSize]byte]*Record)
 			fmt.Printf("error range %v\n", err)
 		}
 		if found == true {
-			r.MasterBlocks[blockID].appendRow(tree.MakeRow(data[key].CreationTime, data[key].GetJson()))
+			r.MasterBlocks[blockID].appendRow(tree.MakeRow(data[key].CreationTime, data[key].GetJson(), data[key].Identifier))
 		}
 	}
 	for i := 0; i < len(r.MasterBlocks); i++ {

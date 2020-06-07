@@ -2,7 +2,6 @@ package chord
 
 import (
 	"github.com/mbrostami/chord/helpers"
-	"github.com/mbrostami/chord/merkle"
 )
 
 //go:generate moq -out remote_node_sender_interface_test.go . RemoteNodeSenderInterface
@@ -34,7 +33,7 @@ type RemoteNodeSenderInterface interface {
 	Store(remote *RemoteNode, data []byte) bool
 
 	// Store store data in remote node
-	ForwardSync(remote *RemoteNode, plHash [helpers.HashSize]byte, data []byte, tree *merkle.MerkleTree) (*merkle.MerkleTree, error)
+	Fetch(remote *RemoteNode, key [helpers.HashSize]byte) []byte
 
 	// GetPredecessorList
 	GetPredecessorList(remote *RemoteNode, local *Node) (*PredecessorList, error)

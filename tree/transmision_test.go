@@ -18,9 +18,9 @@ func TestSerializeUnserialize(t *testing.T) {
 	ctime2 := now.Add(-20 * time.Minute)
 	ctime3 := now.Add(-20 * time.Second)
 
-	row1 := MakeRow(ctime1, value1)
-	row2 := MakeRow(ctime2, value2)
-	row3 := MakeRow(ctime3, value3)
+	row1 := MakeRow(ctime1, value1, Hash(value1))
+	row2 := MakeRow(ctime2, value2, Hash(value2))
+	row3 := MakeRow(ctime3, value3, Hash(value3))
 
 	rows = append(rows, row1)
 	rows = append(rows, row2)
@@ -60,9 +60,9 @@ func TestDiffsSameJson(t *testing.T) {
 	ctime2 := now.Add(-20 * time.Minute)
 	ctime3 := now.Add(-20 * time.Second)
 
-	row1 := MakeRow(ctime1, value1)
-	row2 := MakeRow(ctime2, value2)
-	row3 := MakeRow(ctime3, value3)
+	row1 := MakeRow(ctime1, value1, Hash(value1))
+	row2 := MakeRow(ctime2, value2, Hash(value2))
+	row3 := MakeRow(ctime3, value3, Hash(value3))
 
 	rows = append(rows, row1)
 	rows = append(rows, row2)
@@ -95,10 +95,10 @@ func TestDiffsMissingInDestination(t *testing.T) {
 	ctime3 := now.Add(-20 * time.Second)
 	ctime4 := now.Add(-10 * time.Second)
 
-	row1 := MakeRow(ctime1, value1)
-	row2 := MakeRow(ctime2, value2)
-	row3 := MakeRow(ctime3, value3)
-	row4 := MakeRow(ctime4, value4)
+	row1 := MakeRow(ctime1, value1, Hash(value1))
+	row2 := MakeRow(ctime2, value2, Hash(value2))
+	row3 := MakeRow(ctime3, value3, Hash(value3))
+	row4 := MakeRow(ctime4, value4, Hash(value4))
 
 	rows = append(rows, row1)
 	rows = append(rows, row2)
@@ -142,9 +142,9 @@ func TestDiffsMissingInSource(t *testing.T) {
 	ctime2 := now.Add(-20 * time.Minute)
 	ctime3 := now.Add(-20 * time.Second)
 
-	row1 := MakeRow(ctime1, value1)
-	row2 := MakeRow(ctime2, value2)
-	row3 := MakeRow(ctime3, value3)
+	row1 := MakeRow(ctime1, value1, Hash(value1))
+	row2 := MakeRow(ctime2, value2, Hash(value2))
+	row3 := MakeRow(ctime3, value3, Hash(value3))
 
 	rows = append(rows, row1)
 	rows = append(rows, row2)
@@ -178,9 +178,9 @@ func TestExtraDiffs(t *testing.T) {
 	ctime2 := now.Add(-20 * time.Minute)
 	ctime3 := now.Add(-20 * time.Second)
 
-	row1 := MakeRow(ctime1, value1)
-	row2 := MakeRow(ctime2, value2)
-	row3 := MakeRow(ctime3, value3)
+	row1 := MakeRow(ctime1, value1, Hash(value1))
+	row2 := MakeRow(ctime2, value2, Hash(value2))
+	row3 := MakeRow(ctime3, value3, Hash(value3))
 
 	rows = append(rows, row1)
 	rows = append(rows, row2)

@@ -12,7 +12,7 @@ import (
 const HashSize = helpers.HashSize
 
 // Hash calculate the hash of given data
-func Hash(data []byte) [HashSize]byte {
+func Hash(data []byte) [helpers.HashSize]byte {
 	return helpers.Hash(string(data))
 }
 
@@ -29,11 +29,11 @@ func CalculateBlockIndex(source time.Time, ctime time.Time) uint {
 }
 
 // BytesLessThan check if a < b
-func BytesLessThan(sourceHash [HashSize]byte, destHash [HashSize]byte) bool {
+func BytesLessThan(sourceHash [helpers.HashSize]byte, destHash [helpers.HashSize]byte) bool {
 	a := new(big.Int)
 	b := new(big.Int)
-	a.SetBytes(sourceHash[:HashSize])
-	b.SetBytes(destHash[:HashSize])
+	a.SetBytes(sourceHash[:helpers.HashSize])
+	b.SetBytes(destHash[:helpers.HashSize])
 	if a.Cmp(b) == -1 {
 		return true
 	}
@@ -41,11 +41,11 @@ func BytesLessThan(sourceHash [HashSize]byte, destHash [HashSize]byte) bool {
 }
 
 // BytesEqual check if a = b
-func BytesEqual(sourceHash [HashSize]byte, destHash [HashSize]byte) bool {
+func BytesEqual(sourceHash [helpers.HashSize]byte, destHash [helpers.HashSize]byte) bool {
 	a := new(big.Int)
 	b := new(big.Int)
-	a.SetBytes(sourceHash[:HashSize])
-	b.SetBytes(destHash[:HashSize])
+	a.SetBytes(sourceHash[:helpers.HashSize])
+	b.SetBytes(destHash[:helpers.HashSize])
 	if a.Cmp(b) == 0 {
 		return true
 	}

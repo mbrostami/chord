@@ -18,11 +18,11 @@ func TestSingleRowMasterBlock(t *testing.T) {
 	replication := NewReplication(time.Now(), ranges, 2)
 
 	var data []*tree.Row
-	data = append(data, tree.MakeRow(time.Now(), []byte("a"))) // 86f7e437faa5 E (40551fa9, 7584b781f3a) => skip
-	data = append(data, tree.MakeRow(time.Now(), []byte("b"))) // e9d71f5e E (40551fa9, 7584b781f3a) => skip
-	data = append(data, tree.MakeRow(time.Now(), []byte("c"))) // 84a51684 E (40551fa9, 7584b781f3a) => skip
-	data = append(data, tree.MakeRow(time.Now(), []byte("d"))) // 3c3638 E (40551fa9, 7584b781f3a) => skip
-	data = append(data, tree.MakeRow(time.Now(), []byte("e"))) // 58e6b3a4 E (40551fa9, 7584b781f3a) => will be added to block
+	data = append(data, tree.MakeRow(time.Now(), []byte("a"), helpers.Hash("a"))) // 86f7e437faa5 E (40551fa9, 7584b781f3a) => skip
+	data = append(data, tree.MakeRow(time.Now(), []byte("b"), helpers.Hash("b"))) // e9d71f5e E (40551fa9, 7584b781f3a) => skip
+	data = append(data, tree.MakeRow(time.Now(), []byte("c"), helpers.Hash("c"))) // 84a51684 E (40551fa9, 7584b781f3a) => skip
+	data = append(data, tree.MakeRow(time.Now(), []byte("d"), helpers.Hash("d"))) // 3c3638 E (40551fa9, 7584b781f3a) => skip
+	data = append(data, tree.MakeRow(time.Now(), []byte("e"), helpers.Hash("e"))) // 58e6b3a4 E (40551fa9, 7584b781f3a) => will be added to block
 	replication.MakeTrees(data)
 	if len(replication.MasterBlocks) != 1 {
 		t.Errorf("number of master blocks must be %d got %d", 1, len(replication.MasterBlocks))
@@ -70,11 +70,11 @@ func TestTwoRowsMasterBlock(t *testing.T) {
 	replication := NewReplication(time.Now(), ranges, 2)
 
 	var data []*tree.Row
-	data = append(data, tree.MakeRow(time.Now(), []byte("a"))) // 86f7e437faa5 E (7584b781f3a, bddf48b20eb1) => will be added to block
-	data = append(data, tree.MakeRow(time.Now(), []byte("b"))) // e9d71f5e E (7584b781f3a, bddf48b20eb1) => skip
-	data = append(data, tree.MakeRow(time.Now(), []byte("c"))) // 84a51684 E (7584b781f3a, bddf48b20eb1) => will be added to block
-	data = append(data, tree.MakeRow(time.Now(), []byte("d"))) // 3c3638 E (7584b781f3a, bddf48b20eb1) => skip
-	data = append(data, tree.MakeRow(time.Now(), []byte("e"))) // 58e6b3a4 E (7584b781f3a, bddf48b20eb1) => skip
+	data = append(data, tree.MakeRow(time.Now(), []byte("a"), helpers.Hash("a"))) // 86f7e437faa5 E (7584b781f3a, bddf48b20eb1) => will be added to block
+	data = append(data, tree.MakeRow(time.Now(), []byte("b"), helpers.Hash("b"))) // e9d71f5e E (7584b781f3a, bddf48b20eb1) => skip
+	data = append(data, tree.MakeRow(time.Now(), []byte("c"), helpers.Hash("c"))) // 84a51684 E (7584b781f3a, bddf48b20eb1) => will be added to block
+	data = append(data, tree.MakeRow(time.Now(), []byte("d"), helpers.Hash("d"))) // 3c3638 E (7584b781f3a, bddf48b20eb1) => skip
+	data = append(data, tree.MakeRow(time.Now(), []byte("e"), helpers.Hash("e"))) // 58e6b3a4 E (7584b781f3a, bddf48b20eb1) => skip
 	replication.MakeTrees(data)
 
 	if len(replication.MasterBlocks) != 1 {
@@ -123,12 +123,12 @@ func TestMultipleRowsMasterBlock(t *testing.T) {
 	replication := NewReplication(now, ranges, 2)
 
 	var data []*tree.Row
-	data = append(data, tree.MakeRow(time.Now(), []byte("a"))) // 86f7e437faa5 E (4b107076bf0, f88860c3ae) => will be added to block
-	data = append(data, tree.MakeRow(time.Now(), []byte("b"))) // e9d71f5e E (4b107076bf0, f88860c3ae) => will be added to block
-	data = append(data, tree.MakeRow(time.Now(), []byte("c"))) // 84a51684 E (4b107076bf0, f88860c3ae) => will be added to block
-	data = append(data, tree.MakeRow(time.Now(), []byte("d"))) // 3c3638 E (4b107076bf0, f88860c3ae) => skip
-	data = append(data, tree.MakeRow(time.Now(), []byte("e"))) // 58e6b3a4 E (4b107076bf0, f88860c3ae) => will be added to block
-	data = append(data, tree.MakeRow(time.Now(), []byte("g"))) // 54fd17112 E (4b107076bf0, f88860c3ae) => will be added to block
+	data = append(data, tree.MakeRow(time.Now(), []byte("a"), helpers.Hash("a"))) // 86f7e437faa5 E (4b107076bf0, f88860c3ae) => will be added to block
+	data = append(data, tree.MakeRow(time.Now(), []byte("b"), helpers.Hash("b"))) // e9d71f5e E (4b107076bf0, f88860c3ae) => will be added to block
+	data = append(data, tree.MakeRow(time.Now(), []byte("c"), helpers.Hash("c"))) // 84a51684 E (4b107076bf0, f88860c3ae) => will be added to block
+	data = append(data, tree.MakeRow(time.Now(), []byte("d"), helpers.Hash("d"))) // 3c3638 E (4b107076bf0, f88860c3ae) => skip
+	data = append(data, tree.MakeRow(time.Now(), []byte("e"), helpers.Hash("e"))) // 58e6b3a4 E (4b107076bf0, f88860c3ae) => will be added to block
+	data = append(data, tree.MakeRow(time.Now(), []byte("g"), helpers.Hash("g"))) // 54fd17112 E (4b107076bf0, f88860c3ae) => will be added to block
 	replication.MakeTrees(data)
 
 	if len(replication.MasterBlocks) != 1 {
@@ -190,13 +190,13 @@ func TestMultipleRowsMasterBlockMultipleSubBlocks(t *testing.T) {
 	replication := NewReplication(now, ranges, 2)
 
 	var data []*tree.Row
-	data = append(data, tree.MakeRow(now.Add(-10*time.Minute), []byte("a"))) // 86f7e437faa5 E (4b107076bf0, f88860c3ae) => will be added to block
-	data = append(data, tree.MakeRow(now.Add(-20*time.Minute), []byte("b"))) // e9d71f5e E (4b107076bf0, f88860c3ae) => will be added to block
-	data = append(data, tree.MakeRow(now.Add(-30*time.Minute), []byte("c"))) // 84a51684 E (4b107076bf0, f88860c3ae) => will be added to block
-	data = append(data, tree.MakeRow(now.Add(-40*time.Minute), []byte("d"))) // 3c3638 E (4b107076bf0, f88860c3ae) => skip
+	data = append(data, tree.MakeRow(now.Add(-10*time.Minute), []byte("a"), helpers.Hash("a"))) // 86f7e437faa5 E (4b107076bf0, f88860c3ae) => will be added to block
+	data = append(data, tree.MakeRow(now.Add(-20*time.Minute), []byte("b"), helpers.Hash("b"))) // e9d71f5e E (4b107076bf0, f88860c3ae) => will be added to block
+	data = append(data, tree.MakeRow(now.Add(-30*time.Minute), []byte("c"), helpers.Hash("c"))) // 84a51684 E (4b107076bf0, f88860c3ae) => will be added to block
+	data = append(data, tree.MakeRow(now.Add(-40*time.Minute), []byte("d"), helpers.Hash("d"))) // 3c3638 E (4b107076bf0, f88860c3ae) => skip
 	// next 2 records would be in same block
-	data = append(data, tree.MakeRow(now.Add(-50*time.Minute), []byte("e"))) // 58e6b3a4 E (4b107076bf0, f88860c3ae) => will be added to block
-	data = append(data, tree.MakeRow(now.Add(-70*time.Minute), []byte("g"))) // 54fd17112 E (4b107076bf0, f88860c3ae) => will be added to block
+	data = append(data, tree.MakeRow(now.Add(-50*time.Minute), []byte("e"), helpers.Hash("e"))) // 58e6b3a4 E (4b107076bf0, f88860c3ae) => will be added to block
+	data = append(data, tree.MakeRow(now.Add(-70*time.Minute), []byte("g"), helpers.Hash("g"))) // 54fd17112 E (4b107076bf0, f88860c3ae) => will be added to block
 	replication.MakeTrees(data)
 
 	if len(replication.MasterBlocks) != 1 {
@@ -262,12 +262,12 @@ func TestMultipleRowsMasterBlockMultipleSubBlocksOdd(t *testing.T) {
 	replication := NewReplication(now, ranges, 2)
 
 	var data []*tree.Row
-	data = append(data, tree.MakeRow(now.Add(-10*time.Minute), []byte("a")))  // 86f7e437faa5 E (4b107076bf0, f88860c3ae) => will be added to block
-	data = append(data, tree.MakeRow(now.Add(-20*time.Minute), []byte("b")))  // e9d71f5e E (4b107076bf0, f88860c3ae) => will be added to block
-	data = append(data, tree.MakeRow(now.Add(-30*time.Minute), []byte("c")))  // 84a51684 E (4b107076bf0, f88860c3ae) => will be added to block
-	data = append(data, tree.MakeRow(now.Add(-40*time.Minute), []byte("d")))  // 3c3638 E (4b107076bf0, f88860c3ae) => skip
-	data = append(data, tree.MakeRow(now.Add(-50*time.Minute), []byte("e")))  // 58e6b3a4 E (4b107076bf0, f88860c3ae) => will be added to block
-	data = append(data, tree.MakeRow(now.Add(-120*time.Minute), []byte("g"))) // 54fd17112 E (4b107076bf0, f88860c3ae) => will be added to block
+	data = append(data, tree.MakeRow(now.Add(-10*time.Minute), []byte("a"), helpers.Hash("a")))  // 86f7e437faa5 E (4b107076bf0, f88860c3ae) => will be added to block
+	data = append(data, tree.MakeRow(now.Add(-20*time.Minute), []byte("b"), helpers.Hash("b")))  // e9d71f5e E (4b107076bf0, f88860c3ae) => will be added to block
+	data = append(data, tree.MakeRow(now.Add(-30*time.Minute), []byte("c"), helpers.Hash("c")))  // 84a51684 E (4b107076bf0, f88860c3ae) => will be added to block
+	data = append(data, tree.MakeRow(now.Add(-40*time.Minute), []byte("d"), helpers.Hash("d")))  // 3c3638 E (4b107076bf0, f88860c3ae) => skip
+	data = append(data, tree.MakeRow(now.Add(-50*time.Minute), []byte("e"), helpers.Hash("e")))  // 58e6b3a4 E (4b107076bf0, f88860c3ae) => will be added to block
+	data = append(data, tree.MakeRow(now.Add(-120*time.Minute), []byte("g"), helpers.Hash("g"))) // 54fd17112 E (4b107076bf0, f88860c3ae) => will be added to block
 	replication.MakeTrees(data)
 
 	if len(replication.MasterBlocks) != 1 {
@@ -334,12 +334,12 @@ func TestMultipleMasterBlockMultipleSubBlocksOdd(t *testing.T) {
 	replication := NewReplication(now, ranges, 3)
 
 	var data []*tree.Row
-	data = append(data, tree.MakeRow(now.Add(-10*time.Minute), []byte("a")))  // 86f7e437faa5 E (4b107076bf0, f88860c3ae) => will be added to block 1
-	data = append(data, tree.MakeRow(now.Add(-20*time.Minute), []byte("b")))  // e9d71f5e E (4b107076bf0, f88860c3ae) => will be added to block 1
-	data = append(data, tree.MakeRow(now.Add(-30*time.Minute), []byte("c")))  // 84a51684 E (4b107076bf0, f88860c3ae) => will be added to block 1
-	data = append(data, tree.MakeRow(now.Add(-40*time.Minute), []byte("d")))  // 3c3638 E (4b107076bf0, f88860c3ae) => will be added to block 0
-	data = append(data, tree.MakeRow(now.Add(-50*time.Minute), []byte("e")))  // 58e6b3a4 E (4b107076bf0, f88860c3ae) => will be added to block 1
-	data = append(data, tree.MakeRow(now.Add(-120*time.Minute), []byte("g"))) // 54fd17112 E (4b107076bf0, f88860c3ae) => will be added to block 1
+	data = append(data, tree.MakeRow(now.Add(-10*time.Minute), []byte("a"), helpers.Hash("a")))  // 86f7e437faa5 E (4b107076bf0, f88860c3ae) => will be added to block 1
+	data = append(data, tree.MakeRow(now.Add(-20*time.Minute), []byte("b"), helpers.Hash("b")))  // e9d71f5e E (4b107076bf0, f88860c3ae) => will be added to block 1
+	data = append(data, tree.MakeRow(now.Add(-30*time.Minute), []byte("c"), helpers.Hash("c")))  // 84a51684 E (4b107076bf0, f88860c3ae) => will be added to block 1
+	data = append(data, tree.MakeRow(now.Add(-40*time.Minute), []byte("d"), helpers.Hash("d")))  // 3c3638 E (4b107076bf0, f88860c3ae) => will be added to block 0
+	data = append(data, tree.MakeRow(now.Add(-50*time.Minute), []byte("e"), helpers.Hash("e")))  // 58e6b3a4 E (4b107076bf0, f88860c3ae) => will be added to block 1
+	data = append(data, tree.MakeRow(now.Add(-120*time.Minute), []byte("g"), helpers.Hash("g"))) // 54fd17112 E (4b107076bf0, f88860c3ae) => will be added to block 1
 	replication.MakeTrees(data)
 
 	if len(replication.MasterBlocks) != 2 {
@@ -424,12 +424,12 @@ func TestJsonOutput(t *testing.T) {
 	replication := NewReplication(now, ranges, 3)
 
 	var data []*tree.Row
-	data = append(data, tree.MakeRow(now.Add(-10*time.Minute), []byte("a")))  // 86f7e437faa5 E (4b107076bf0, f88860c3ae) => will be added to block 1
-	data = append(data, tree.MakeRow(now.Add(-20*time.Minute), []byte("b")))  // e9d71f5e E (4b107076bf0, f88860c3ae) => will be added to block 1
-	data = append(data, tree.MakeRow(now.Add(-30*time.Minute), []byte("c")))  // 84a51684 E (4b107076bf0, f88860c3ae) => will be added to block 1
-	data = append(data, tree.MakeRow(now.Add(-40*time.Minute), []byte("d")))  // 3c3638 E (4b107076bf0, f88860c3ae) => will be added to block 0
-	data = append(data, tree.MakeRow(now.Add(-50*time.Minute), []byte("e")))  // 58e6b3a4 E (4b107076bf0, f88860c3ae) => will be added to block 1
-	data = append(data, tree.MakeRow(now.Add(-120*time.Minute), []byte("g"))) // 54fd17112 E (4b107076bf0, f88860c3ae) => will be added to block 1
+	data = append(data, tree.MakeRow(now.Add(-10*time.Minute), []byte("a"), helpers.Hash("a")))  // 86f7e437faa5 E (4b107076bf0, f88860c3ae) => will be added to block 1
+	data = append(data, tree.MakeRow(now.Add(-20*time.Minute), []byte("b"), helpers.Hash("b")))  // e9d71f5e E (4b107076bf0, f88860c3ae) => will be added to block 1
+	data = append(data, tree.MakeRow(now.Add(-30*time.Minute), []byte("c"), helpers.Hash("c")))  // 84a51684 E (4b107076bf0, f88860c3ae) => will be added to block 1
+	data = append(data, tree.MakeRow(now.Add(-40*time.Minute), []byte("d"), helpers.Hash("d")))  // 3c3638 E (4b107076bf0, f88860c3ae) => will be added to block 0
+	data = append(data, tree.MakeRow(now.Add(-50*time.Minute), []byte("e"), helpers.Hash("e")))  // 58e6b3a4 E (4b107076bf0, f88860c3ae) => will be added to block 1
+	data = append(data, tree.MakeRow(now.Add(-120*time.Minute), []byte("g"), helpers.Hash("g"))) // 54fd17112 E (4b107076bf0, f88860c3ae) => will be added to block 1
 	replication.MakeTrees(data)
 
 	if len(replication.MasterBlocks) != 2 {

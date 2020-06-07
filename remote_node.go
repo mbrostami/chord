@@ -2,7 +2,6 @@ package chord
 
 import (
 	"github.com/mbrostami/chord/helpers"
-	"github.com/mbrostami/chord/merkle"
 )
 
 type RemoteNode struct {
@@ -45,9 +44,9 @@ func (n *RemoteNode) Store(data []byte) bool {
 	return n.sender.Store(n, data)
 }
 
-// ForwardSync sync local data missing on remote
-func (n *RemoteNode) ForwardSync(plHash [helpers.HashSize]byte, data []byte, tree *merkle.MerkleTree) (*merkle.MerkleTree, error) {
-	return n.sender.ForwardSync(n, plHash, data, tree)
+// Fetch get data from remote node
+func (n *RemoteNode) Fetch(key [helpers.HashSize]byte) []byte {
+	return n.sender.Fetch(n, key)
 }
 
 // Notify update predecessor

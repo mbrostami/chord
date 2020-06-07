@@ -17,9 +17,9 @@ func TestMakeBlocksWithExistingTime(t *testing.T) {
 	ctime2 := now.Add(-20 * time.Minute)
 	ctime3 := now.Add(-20 * time.Second)
 
-	row1 := MakeRow(ctime1, value1)
-	row2 := MakeRow(ctime2, value2)
-	row3 := MakeRow(ctime3, value3)
+	row1 := MakeRow(ctime1, value1, Hash(value1))
+	row2 := MakeRow(ctime2, value2, Hash(value2))
+	row3 := MakeRow(ctime3, value3, Hash(value3))
 
 	blockID1 := CalculateBlockIndex(now, ctime1)
 	blockID2 := CalculateBlockIndex(now, ctime2)
@@ -67,9 +67,9 @@ func TestMakeBlocksDataInSameBlockWithExistingTime(t *testing.T) {
 	ctime1 := now.Add(-10 * time.Minute)
 	ctime3 := now.Add(-20 * time.Second)
 
-	row1 := MakeRow(ctime1, value1)
-	row2 := MakeRow(ctime1, value2)
-	row3 := MakeRow(ctime3, value3)
+	row1 := MakeRow(ctime1, value1, Hash(value1))
+	row2 := MakeRow(ctime1, value2, Hash(value2))
+	row3 := MakeRow(ctime3, value3, Hash(value3))
 
 	blockID12 := CalculateBlockIndex(now, ctime1)
 	blockID3 := CalculateBlockIndex(now, ctime3)
@@ -120,9 +120,9 @@ func TestMakeBlocksDataInSameBlock(t *testing.T) {
 	ctime1 := now.Add(-10 * time.Minute)
 	ctime3 := now.Add(-20 * time.Second)
 
-	row1 := MakeRow(ctime1, value1)
-	row2 := MakeRow(ctime1, value2)
-	row3 := MakeRow(ctime3, value3)
+	row1 := MakeRow(ctime1, value1, Hash(value1))
+	row2 := MakeRow(ctime1, value2, Hash(value2))
+	row3 := MakeRow(ctime3, value3, Hash(value3))
 
 	hash1 := Hash(value1)
 	hash2 := Hash(value2)
@@ -169,9 +169,9 @@ func TestMakeBlocksOldCreationTime(t *testing.T) {
 	ctime2 := now.AddDate(0, -12, 0) // log based 2 (365*24*3600) => 25
 	ctime3 := now.AddDate(0, -11, 0) // log based 2 (335*24*3600) => 25
 
-	row1 := MakeRow(ctime1, value1)
-	row2 := MakeRow(ctime2, value2)
-	row3 := MakeRow(ctime3, value3)
+	row1 := MakeRow(ctime1, value1, Hash(value1))
+	row2 := MakeRow(ctime2, value2, Hash(value2))
+	row3 := MakeRow(ctime3, value3, Hash(value3))
 
 	blockID1 := CalculateBlockIndex(now, ctime1)
 	blockID2 := CalculateBlockIndex(now, ctime2)
@@ -217,9 +217,9 @@ func TestMakeLeafs(t *testing.T) {
 	ctime2 := now.AddDate(0, -12, 0) // log based 2 (365*24*3600) => 25
 	ctime3 := now.AddDate(0, -11, 0) // log based 2 (335*24*3600) => 25
 
-	row1 := MakeRow(ctime1, value1)
-	row2 := MakeRow(ctime2, value2)
-	row3 := MakeRow(ctime3, value3)
+	row1 := MakeRow(ctime1, value1, Hash(value1))
+	row2 := MakeRow(ctime2, value2, Hash(value2))
+	row3 := MakeRow(ctime3, value3, Hash(value3))
 
 	rows = append(rows, row1)
 	rows = append(rows, row2)

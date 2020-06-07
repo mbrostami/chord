@@ -16,7 +16,7 @@ service Chord {
   rpc GetPredecessorList(Node) returns (Nodes) {}
   rpc GlobalMaintenance(Replication) returns (Replication) {}
   rpc Store(Content) returns (google.protobuf.BoolValue) {}
-  rpc ForwardSync(ForwardSyncData) returns (ForwardSyncData) {}
+  rpc Fetch(Lookup) returns (Content) {}
 }
 
 message Replication {

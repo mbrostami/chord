@@ -2,7 +2,6 @@ package chord
 
 import (
 	"github.com/mbrostami/chord/helpers"
-	"github.com/mbrostami/chord/merkle"
 )
 
 // MockRemoteNodeSenderInterface interface for client adapter
@@ -23,9 +22,6 @@ func (m MockRemoteNodeSenderInterface) Ping(remote *RemoteNode) bool {
 }
 func (m MockRemoteNodeSenderInterface) Store(remote *RemoteNode, data []byte) bool {
 	return true
-}
-func (m MockRemoteNodeSenderInterface) ForwardSync(remote *RemoteNode, plHash [helpers.HashSize]byte, data []byte, tree *merkle.MerkleTree) (*merkle.MerkleTree, error) {
-	return nil, nil
 }
 func (m MockRemoteNodeSenderInterface) GetPredecessorList(remote *RemoteNode, local *Node) (*PredecessorList, error) {
 	return nil, nil

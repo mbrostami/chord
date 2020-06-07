@@ -1,11 +1,16 @@
 package main
 
 import (
+	"bufio"
+	"encoding/json"
 	"flag"
+	"fmt"
+	"os"
 	"sync"
 	"time"
 
 	"github.com/mbrostami/chord"
+	"github.com/mbrostami/chord/helpers"
 	"github.com/mbrostami/chord/net"
 	log "github.com/sirupsen/logrus"
 )
@@ -72,26 +77,38 @@ func main() {
 		}
 	}()
 	go func() {
-		if *port == 0 {
-			i := 0
-			for {
-				i++
-				record := &chord.Record{
-					CreationTime: time.Now(),
-					Content:      []byte("String:" + string(i)),
-				}
-				remoteNodeToStore := chordRing.FindSuccessor(record.Hash())
-				remoteNodeToStore.Store(record.GetJson())
-				time.Sleep(10 * time.Second)
-			}
-		}
-	}()
-	go func() {
 		for {
 			chordRing.SyncData()
 			time.Sleep(10 * time.Second)
 		}
 	}()
+	if *port != 0 {
+		reader := bufio.NewReader(os.Stdin)
+		fmt.Print("Enter your username: ")
+		username, _ := reader.ReadString('\n')
+		record := &chord.Record{
+			CreationTime: time.Now(),
+			Content:      []byte("@" + username),
+			Identifier:   helpers.Hash("@" + username),
+		}
+		remoteNodeToStore := chordRing.FindSuccessor(record.Hash())
+		remoteNodeToStore.Store(record.GetJson())
+		for {
+			fmt.Print("Find username: ")
+			rusername, _ := reader.ReadString('\n')
+			storerNode := chordRing.FindSuccessor(helpers.Hash("@" + rusername))
+			fmt.Printf("key %x successor %x\n", helpers.Hash("@"+rusername), storerNode.Identifier)
+			value := storerNode.Fetch(helpers.Hash("@" + rusername))
+			if value == nil {
+				fmt.Print("key doesn't exist\n")
+			} else {
+				var record chord.Record
+				json.Unmarshal(value, &record)
+				fmt.Printf("value reatrive %s, %s, %x\n", record.CreationTime, string(record.Content), record.Identifier)
+			}
+		}
+	}
+
 	var wg sync.WaitGroup
 	wg.Add(1)
 	wg.Wait()

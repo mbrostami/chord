@@ -21,13 +21,13 @@ func NewDStore() *DStore {
 }
 
 type Record struct {
-	CreationTime time.Time `json:"creation_time"`
-	Content      []byte    `json:"content"`
+	CreationTime time.Time              `json:"creation_time"`
+	Content      []byte                 `json:"content"`
+	Identifier   [helpers.HashSize]byte `json:"identifier"`
 }
 
 func (r *Record) Hash() [helpers.HashSize]byte {
-	json, _ := json.Marshal(r)
-	return helpers.Hash(string(json))
+	return r.Identifier
 }
 
 func (r *Record) GetJson() []byte {
@@ -41,7 +41,7 @@ func (d *DStore) Put(value []byte) bool {
 		Content:      value,
 	}
 	json, _ := json.Marshal(record)
-	key := helpers.Hash(string(json))
+	key := helpers.Hash(string(value))
 	// log.Debugf("storing data %x: %v", key, json)
 	d.db[key] = &json
 	return true
@@ -49,7 +49,7 @@ func (d *DStore) Put(value []byte) bool {
 
 func (d *DStore) PutRecord(record Record) bool {
 	json, _ := json.Marshal(record)
-	key := helpers.Hash(string(json))
+	key := record.Identifier
 	// log.Debugf("storing data %x: %v", key, json)
 	d.db[key] = &json
 	return true
@@ -65,6 +65,13 @@ func (d *DStore) GetRange(fromKey [helpers.HashSize]byte, toKey [helpers.HashSiz
 		}
 	}
 	return data
+}
+
+func (d *DStore) Get(key [helpers.HashSize]byte) []byte {
+	if val, ok := d.db[key]; ok {
+		return *val
+	}
+	return nil
 }
 
 func (d *DStore) GetAll() map[[helpers.HashSize]byte]*Record {
