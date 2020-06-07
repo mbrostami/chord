@@ -2,6 +2,7 @@ package chord
 
 import (
 	"encoding/json"
+	"sort"
 	"time"
 
 	"github.com/mbrostami/chord/helpers"
@@ -199,18 +200,23 @@ func (r *Ring) SyncData() error {
 		log.Debug("ring:SyncData predecessors are not enough")
 		return nil
 	}
-	log.Debug("ring:SyncData strated")
+	// log.Debug("ring:SyncData strated")
 	sourceTime := time.Now()
 
 	ranges := make(map[int][helpers.HashSize]byte)
 	ranges[0] = r.localNode.Identifier
 	for i := 0; i <= lastPredIndex; i++ {
-		ranges[i+1] = r.predecessorList.Nodes[i].Identifier
+		if r.predecessorList.Nodes[i].Ping() {
+			ranges[i+1] = r.predecessorList.Nodes[i].Identifier
+		} else {
+			log.Error("ring:SyncData predecessor ping timeout")
+			return nil
+		}
 	}
 	replication := NewReplication(sourceTime, ranges, replicas)
 	// if replica is 2, we only need first predecessor to current node range of data
 	allKeysInRange := r.dstore.GetRange(ranges[lastPredIndex+1], ranges[0])
-	log.Infof("ring:SyncData db range got %d from %x to %x", len(allKeysInRange), ranges[lastPredIndex+1], ranges[0])
+	// log.Infof("ring:SyncData db range got %d from %x to %x", len(allKeysInRange), ranges[lastPredIndex+1], ranges[0])
 	if allKeysInRange == nil {
 		log.Infof("ring:SyncData there is no data to replicate")
 		return nil
@@ -228,7 +234,7 @@ func (r *Ring) SyncData() error {
 		return err
 	}
 	if jsonResponse == nil {
-		log.Info("ring:SyncData everything is synced")
+		// log.Info("ring:SyncData everything is synced")
 		// everything is synced
 		return nil
 	}
@@ -242,26 +248,26 @@ func (r *Ring) SyncData() error {
 		}
 		duplicates[rows[i].Hash] = rows[i]
 		// store missing data in remote node
-		log.Infof("ring:SyncData store on remote node: %x", rows[i].Hash)
+		// log.Infof("ring:SyncData store on remote node: %x", rows[i].Hash)
 		// Sort rows when making tree, cause we might have different orders so different root hash
 		r.successor.Store(rows[i].Content)
 	}
-	log.Infof("ring:SyncData different rows: %+v", rows)
+	// log.Infof("ring:SyncData different rows: %+v", rows)
 	return nil
 }
 
 func (r *Ring) GlobalMaintenance(jsonData []byte) ([]byte, error) {
 	replicas := 2
 	lastPredIndex := replicas - 1
-	log.Debug("ring:GlobalMaintenance strated")
+	// log.Debug("ring:GlobalMaintenance strated")
 	basicTranport := BasicUnserialize(jsonData)
 	ranges := basicTranport.Ranges // use received ranges
 	replication := NewReplication(basicTranport.SourceTime, basicTranport.Ranges, replicas)
 	// if replica is 2, we only need second predecessor to predecessor range of data
 	allKeysInRange := r.dstore.GetRange(ranges[lastPredIndex], ranges[0])
-	log.Infof("ring:GlobalMaintenance db range got %d from %x to %x", len(allKeysInRange), ranges[lastPredIndex], ranges[0])
+	// log.Infof("ring:GlobalMaintenance db range got %d from %x to %x", len(allKeysInRange), ranges[lastPredIndex], ranges[0])
 	if allKeysInRange == nil {
-		log.Infof("ring:GlobalMaintenance there is no data to make tree")
+		// log.Infof("ring:GlobalMaintenance there is no data to make tree")
 		return nil, nil
 	}
 	err := replication.MakeTreesWithData(allKeysInRange)
@@ -431,7 +437,7 @@ func (r *Ring) GetPredecessor(caller *RemoteNode) *RemoteNode {
 // Verbose prints successor,predecessor
 // Runs periodically
 func (r *Ring) Verbose() {
-	// log.Debugf("Current Node: %s:%d:%x\n", r.localNode.IP, r.localNode.Port, r.localNode.Identifier)
+	log.Debugf("Current Node: %s:%d:%x", r.localNode.IP, r.localNode.Port, r.localNode.Identifier)
 	// if r.successor != nil {
 	// 	log.Debugf("Current Node Successor: %s:%d:%x\n", r.successor.IP, r.successor.Port, r.successor.Identifier)
 	// }
@@ -447,5 +453,17 @@ func (r *Ring) Verbose() {
 	// for i := 1; i < len(r.fingerTable.Table); i++ {
 	// 	log.Debugf("FingerTable %d: %x\n", i, r.fingerTable.Table[i].Identifier)
 	// }
+	records := r.dstore.GetAll()
+	// sort data
+	sortedKeys := make([]string, 0, len(records))
+	for k := range records {
+		sortedKeys = append(sortedKeys, string(k[:]))
+	}
+	sort.Strings(sortedKeys)
+	for _, k := range sortedKeys {
+		var key [helpers.HashSize]byte
+		copy(key[:helpers.HashSize], []byte(k)[:helpers.HashSize])
+		log.Debugf("db: %x\n", records[key].Hash())
+	}
 	// log.Debugf("\n")
 }

@@ -4,8 +4,6 @@ import (
 	"encoding/json"
 	"time"
 
-	log "github.com/sirupsen/logrus"
-
 	"github.com/mbrostami/chord/helpers"
 )
 
@@ -44,7 +42,7 @@ func (d *DStore) Put(value []byte) bool {
 	}
 	json, _ := json.Marshal(record)
 	key := helpers.Hash(string(json))
-	log.Debugf("storing data %x: %v", key, json)
+	// log.Debugf("storing data %x: %v", key, json)
 	d.db[key] = &json
 	return true
 }
@@ -52,7 +50,7 @@ func (d *DStore) Put(value []byte) bool {
 func (d *DStore) PutRecord(record Record) bool {
 	json, _ := json.Marshal(record)
 	key := helpers.Hash(string(json))
-	log.Debugf("storing data %x: %v", key, json)
+	// log.Debugf("storing data %x: %v", key, json)
 	d.db[key] = &json
 	return true
 }
@@ -65,6 +63,16 @@ func (d *DStore) GetRange(fromKey [helpers.HashSize]byte, toKey [helpers.HashSiz
 			json.Unmarshal(*item, &record)
 			data[key] = &record
 		}
+	}
+	return data
+}
+
+func (d *DStore) GetAll() map[[helpers.HashSize]byte]*Record {
+	data := make(map[[helpers.HashSize]byte]*Record)
+	for key, item := range d.db {
+		record := Record{}
+		json.Unmarshal(*item, &record)
+		data[key] = &record
 	}
 	return data
 }

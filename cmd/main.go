@@ -87,11 +87,9 @@ func main() {
 		}
 	}()
 	go func() {
-		if *port == 0 {
-			for {
-				chordRing.SyncData()
-				time.Sleep(5 * time.Second)
-			}
+		for {
+			chordRing.SyncData()
+			time.Sleep(10 * time.Second)
 		}
 	}()
 	var wg sync.WaitGroup

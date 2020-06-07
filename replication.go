@@ -127,13 +127,13 @@ func (r *Replication) FindMissingData(diffs *Diffs) ([]*tree.Row, error) {
 	}
 	for mblockID, mblock := range r.MasterBlocks {
 		if diffs.MasterBlocks[mblockID] == nil {
-			fmt.Print("FindMissingData: root hash is empty!\n")
+			// fmt.Print("FindMissingData: root hash is empty!\n")
 			rowsToReplicate = append(rowsToReplicate, mblock.rows...)
 			continue
 		}
 		// if master blocks are same, go to the next one
 		if diffs.MasterBlocks[mblockID].RootHash == mblock.RootHash {
-			fmt.Print("FindMissingData: master block hashes are same!\n")
+			// fmt.Print("FindMissingData: master block hashes are same!\n")
 			continue
 		}
 		// if diffs.masterBlock[mblockID] exists there must be diffs.Trees[mblockID]
@@ -151,7 +151,7 @@ func (r *Replication) FindMissingData(diffs *Diffs) ([]*tree.Row, error) {
 						// find the block with same hash, and get rows
 						for _, block := range blocks {
 							if *block.Hash == treeNodes[i].Hash {
-								fmt.Print("FindMissingData: diff node is empty!\n")
+								// fmt.Print("FindMissingData: diff node is empty!\n")
 								rowsToReplicate = append(rowsToReplicate, block.Rows...)
 								break
 							}
@@ -166,7 +166,7 @@ func (r *Replication) FindMissingData(diffs *Diffs) ([]*tree.Row, error) {
 						// find the block with same hash, and get rows
 						for _, block := range blocks {
 							if *block.Hash == treeNodes[i].Hash {
-								fmt.Print("FindMissingData: diff node hash is not same!\n")
+								// fmt.Print("FindMissingData: diff node hash is not same!\n")
 								rowsToReplicate = append(rowsToReplicate, block.Rows...)
 								break
 							}
@@ -187,7 +187,7 @@ func (r *Replication) FindMissingData(diffs *Diffs) ([]*tree.Row, error) {
 							// find the block with same hash, and get rows
 							for _, block := range blocks {
 								if *block.Hash == treeNodes[i].Hash {
-									fmt.Print("FindMissingData: same len: diff node hash is not same!\n")
+									// fmt.Print("FindMissingData: same len: diff node hash is not same!\n")
 									rowsToReplicate = append(rowsToReplicate, block.Rows...)
 									break
 								}
@@ -249,7 +249,7 @@ func Serialize(r *Replication, trees map[int]*tree.Merkle) ([]byte, error) {
 		Ranges:       r.Ranges,
 		Trees:        trees,
 	}
-	fmt.Printf("Serialize: diffs %+v\n", transport)
+	// fmt.Printf("Serialize: diffs %+v\n", transport)
 	return json.Marshal(transport)
 }
 
@@ -257,7 +257,7 @@ func Serialize(r *Replication, trees map[int]*tree.Merkle) ([]byte, error) {
 func Unserialize(jsonData []byte) *Diffs {
 	diffs := Diffs{}
 	json.Unmarshal(jsonData, &diffs)
-	fmt.Printf("Unserialize: diffs %+v\n", diffs)
+	// fmt.Printf("Unserialize: diffs %+v\n", diffs)
 	return &diffs
 }
 
@@ -276,7 +276,7 @@ func BasicSerialize(r *Replication) ([]byte, error) {
 func BasicUnserialize(jsonData []byte) *BasicTranport {
 	basicTransport := BasicTranport{}
 	json.Unmarshal(jsonData, &basicTransport)
-	fmt.Printf("BasicUnserialize: data %+v\n", basicTransport)
+	// fmt.Printf("BasicUnserialize: data %+v\n", basicTransport)
 	return &basicTransport
 }
 
