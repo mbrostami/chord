@@ -20,8 +20,9 @@ type DStore struct {
 	db       map[[helpers.HashSize]byte]*[]byte
 }
 
-func NewDStore() *DStore {
-	db, err := bolt.Open("/tmp/chord_"+string(time.Now().Second()), 0600, nil)
+func NewDStore(uniqueID string) *DStore {
+	uniqueID = string(time.Now().Second())
+	db, err := bolt.Open("/tmp/chord_"+uniqueID, 0600, nil)
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -96,6 +97,48 @@ func (d *DStore) GetRange(fromKey [helpers.HashSize]byte, toKey [helpers.HashSiz
 			record := Record{}
 			json.Unmarshal(value, &record)
 			data[key] = &record
+		}
+		return nil
+	})
+	return data
+}
+
+func (d *DStore) GetRangeCircular(fromKey [helpers.HashSize]byte, toKey [helpers.HashSize]byte) map[[helpers.HashSize]byte]*Record {
+	data := make(map[[helpers.HashSize]byte]*Record)
+	d.database.View(func(tx *bolt.Tx) error {
+		// Assume our events bucket exists and has RFC3339 encoded time keys.
+		c := tx.Bucket([]byte(bucket)).Cursor()
+		// Our time range spans the 90's decade.
+		min := fromKey[:]
+		max := toKey[:]
+		// if fromKey is greater than toKey means, we need to connect last hash to first hash,
+		// and get all keys between those,
+		// e.g. a,b,c,d - getRange(c, b) -> should return [d, a]
+		if helpers.GreaterThan(fromKey, toKey) {
+			// return all keys less than min
+			for k, value := c.Seek(min); k != nil && bytes.Compare(k, min) <= 0; k, value = c.Prev() {
+				var key [helpers.HashSize]byte
+				copy(key[:helpers.HashSize], k[:helpers.HashSize])
+				record := Record{}
+				json.Unmarshal(value, &record)
+				data[key] = &record
+			}
+			// return all keys greater than max
+			for k, value := c.Seek(max); k != nil && bytes.Compare(k, max) >= 0; k, value = c.Next() {
+				var key [helpers.HashSize]byte
+				copy(key[:helpers.HashSize], k[:helpers.HashSize])
+				record := Record{}
+				json.Unmarshal(value, &record)
+				data[key] = &record
+			}
+		} else {
+			for k, value := c.Seek(min); k != nil && bytes.Compare(k, max) <= 0; k, value = c.Next() {
+				var key [helpers.HashSize]byte
+				copy(key[:helpers.HashSize], k[:helpers.HashSize])
+				record := Record{}
+				json.Unmarshal(value, &record)
+				data[key] = &record
+			}
 		}
 		return nil
 	})

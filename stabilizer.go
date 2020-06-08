@@ -4,6 +4,7 @@ import (
 	"errors"
 
 	"github.com/mbrostami/chord/helpers"
+	log "github.com/sirupsen/logrus"
 )
 
 type Stabilizer struct {
@@ -67,13 +68,20 @@ func (s *Stabilizer) getSuccessorStablizerData(successor *RemoteNode, localNode 
 // getPredecessorList get predecessor list from predecessor
 // if predecessor is not available, replace it with the next available predecessor
 func (s *Stabilizer) getPredecessorList(predecessor *RemoteNode, localNode *Node) (*RemoteNode, *PredecessorList) {
-	predecessorList, err := predecessor.GetPredecessorList(localNode)
-	if err != nil {
+	var predecessorList *PredecessorList
+	var err error
+	forceReplace := true
+	if predecessor != nil { // if predecessor is null, get next record
+		predecessorList, err = predecessor.GetPredecessorList(localNode)
+		forceReplace = false
+	}
+	if err != nil || forceReplace {
 		// replace next available predecessor from predecessorList
 		for i := 1; i < len(s.predecessorList.Nodes); i++ {
 			remotNode := s.predecessorList.Nodes[i]
 			predecessorList, err = remotNode.GetPredecessorList(localNode)
 			if err == nil {
+				log.Warnf("predecessor updated to %x", remotNode.Identifier)
 				predecessor = remotNode
 				break
 			}

@@ -10,15 +10,21 @@ OpenDHT
 
 # Merkle Tree syncronization
 Implementation of merkle tree syncronization   
+Defenition   
+Source Time = start time of a syncronization, to have same block numbers while replication  
+Master Block = contains a tree with multiple blocks + root hash + min + max   
+Tree = a merkle tree structure using blocks   
+Block = leaf node of a merkle tree might contain multiple records but only one hash   
+Replication = the service to replicate data, using 3 above   
+
+### Tree
 Consider following rules:  
 - A record is a key-value pair of data
 - key-value pairs are immutable (data will not be edited)
 - One block contains a range of records    
 - Block hash is calculated based on records hashes   
 - A block hash is a leaf in merkle tree   
-To make 2 nodes synced, we need to make sure both have the same data. 
-To do that we need to compare data in both nodes periodically.
-To do the comparison, the simple solution is to send keys from the first node to the next node and return the missing/additional keys to be transfered later. In large amount of records, this is not an optimized way. So we use Blocks. Each block contains multiple key-value records. Now we can transfer hash of the blocks instead of keys. But still the same issue. How many blocks can we support? What if we have a large amount of blocks? How many records each block should have? And more importantly how both nodes know how to make blocks with exactly same records? Do we need range for each block to be sent?   
+To make 2 nodes synced, we need to make sure both have the same data. To do that we need to compare data in both nodes periodically. To do the comparison, the simple solution is to hash each record and send keys from the first node to the next node and return the missing/additional keys to be transfered later. In situations with large amount of records, this is not an optimized way. So we use Blocks. Each block contains multiple key-value records. Now we can transfer hash of the blocks instead of keys. But still the same issue. How many blocks shall we support? What if we have a large amount of blocks? How many records each block should have? And more importantly how both nodes know how to make blocks with exactly same records? Do we need to send the ranges(min-max) of the hashes for each block?   
 What we do, is to make blocks in dynamic size. Considering the insertion timestamp of each record we can calculate a logarithmic block number.  
 
 
@@ -55,8 +61,8 @@ blocknumber = round(log2(2800)) = 11
 
 # TODO
 -[] use https://github.com/grpc/grpc/blob/master/doc/health-checking.md instead of ping  
--[] Virtual nodes  
-
+-[] Virtual nodes   
+-[] FIX: sometimes when a node fails, the predecessor of that node, updates it's successor to itself instead of picking next one from successor list!   
 
 # Debug 
 ```

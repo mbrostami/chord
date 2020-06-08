@@ -100,7 +100,7 @@ func (rs *RemoteNodeSenderGrpc) GetPredecessorList(remoteNode *chord.RemoteNode,
 
 	nodeList, err := client.GetPredecessorList(context.Background(), chordGrpc.ConvertToGrpcNode(localNode))
 	if err != nil {
-		log.Errorf("Remote GetStablizerData failed: %+v \n", err)
+		log.Errorf("Remote GetPredecessorList failed: %+v \n", err)
 		return nil, err
 	}
 	// map grpc nodes to chord.predecessor list
