@@ -48,7 +48,7 @@ func UnserializeData(jsonData []byte) *Data {
 	for key, value := range data.Base64Records {
 		var newKeyByte [helpers.HashSize]byte
 		newKey, _ := base64.StdEncoding.DecodeString(key)
-		copy(newKey, newKeyByte[:])
+		copy(newKeyByte[:helpers.HashSize], newKey[:helpers.HashSize])
 		records[newKeyByte] = value
 	}
 	data.records = records

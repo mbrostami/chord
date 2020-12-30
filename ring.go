@@ -8,6 +8,8 @@ import (
 	log "github.com/sirupsen/logrus"
 )
 
+const replicas int = 3
+
 type Ring struct {
 	localNode       *Node
 	remoteSender    RemoteNodeSenderInterface
@@ -191,7 +193,6 @@ func (r *Ring) SyncData() error {
 	if r.successor.Identifier == r.localNode.Identifier {
 		return nil
 	}
-	replicas := 2
 	lastPredIndex := replicas - 2
 
 	// in order to sync data with successor, we should know about predecessors first
@@ -217,7 +218,7 @@ func (r *Ring) SyncData() error {
 	}
 	// if replica is 2, we only need first predecessor to current node range of data
 	localData, rootHash := r.dstore.GetRangeCircular(ranges[lastIndex], ranges[0])
-	log.Infof("ring:SyncData db range got %d from %x to %x", len(localData), ranges[lastIndex], ranges[0])
+	// log.Infof("ring:SyncData db range got %d from %x to %x", len(localData), ranges[lastIndex], ranges[0])
 	if localData == nil {
 		log.Infof("ring:SyncData there is no data to replicate")
 		return nil
@@ -226,7 +227,6 @@ func (r *Ring) SyncData() error {
 	d := NewData(nil, ranges, rootHash)
 	jsonRequest, err := SerializeData(d)
 
-	log.Infof("ring:SyncData sending: %v, %v", d, err)
 	jsonResponse, err := r.successor.GlobalMaintenance(jsonRequest)
 
 	if err != nil {
@@ -262,10 +262,9 @@ func (r *Ring) SyncData() error {
 
 // GlobalMaintenance gets data information from predecessor to sync missing data
 func (r *Ring) GlobalMaintenance(jsonData []byte) ([]byte, error) {
-	replicas := 2
 	lastPredIndex := replicas - 1
 	data := UnserializeData(jsonData)
-	log.Debugf("ring:GlobalMaintenance strated %v", string(jsonData))
+	// log.Debugf("ring:GlobalMaintenance strated %v", string(jsonData))
 
 	ranges := data.Ranges // use received ranges
 	// if replica is 2, we only need second predecessor to predecessor range of data
@@ -295,7 +294,9 @@ func (r *Ring) Store(jsonData []byte) bool {
 	record := &Record{}
 	json.Unmarshal(jsonData, &record)
 	log.Warnf("ring:store put %s", record.Content)
-	return r.dstore.PutRecord(*record)
+	stored := r.dstore.PutRecord(*record)
+	r.SyncData()
+	return stored
 }
 
 func (r *Ring) GetPredecessor(caller *RemoteNode) *RemoteNode {
@@ -338,7 +339,7 @@ func (r *Ring) Verbose() {
 	for _, k := range sortedKeys {
 		var key [helpers.HashSize]byte
 		copy(key[:helpers.HashSize], []byte(k)[:helpers.HashSize])
-		log.Debugf("db: %s:%x", records[key].Content, records[key].Identifier)
+		log.Debugf("db: %x : %s", key, records[key].Content)
 	}
 	log.Debugf("\n")
 }

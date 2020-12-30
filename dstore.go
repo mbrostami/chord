@@ -116,8 +116,8 @@ func (d *DStore) GetRangeCircular(fromKey [helpers.HashSize]byte, toKey [helpers
 		// and get all keys between those,
 		// e.g. a,b,c,d - getRange(c, b) -> should return [d, a]
 		if helpers.GreaterThan(fromKey, toKey) {
-			// return all keys less than min
-			for k, value := c.Seek(min); k != nil && bytes.Compare(k, min) <= 0; k, value = c.Prev() {
+			// return all keys less than max (tokey)
+			for k, value := c.First(); k != nil && bytes.Compare(k, max) <= 0; k, value = c.Next() {
 				var key [helpers.HashSize]byte
 				copy(key[:helpers.HashSize], k[:helpers.HashSize])
 				record := Record{}
@@ -125,8 +125,8 @@ func (d *DStore) GetRangeCircular(fromKey [helpers.HashSize]byte, toKey [helpers
 				rootHash = helpers.Hash(string(append(rootHash[:], record.Identifier[:]...)))
 				data[key] = &record
 			}
-			// return all keys greater than max
-			for k, value := c.Seek(max); k != nil && bytes.Compare(k, max) >= 0; k, value = c.Next() {
+			// return all keys greater than min (fromKey)
+			for k, value := c.Seek(min); k != nil && bytes.Compare(k, min) >= 0; k, value = c.Next() {
 				var key [helpers.HashSize]byte
 				copy(key[:helpers.HashSize], k[:helpers.HashSize])
 				record := Record{}
