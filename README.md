@@ -1,4 +1,4 @@
-# learning puprose
+Going to be a distributed anonymous cli chat
 
 # Chord
 https://pdos.csail.mit.edu/papers/ton:chord/paper-ton.pdf   
@@ -6,76 +6,24 @@ https://arxiv.org/pdf/1502.06461.pdf
 
 # Distributed Storage 
 
-# Merkle Tree syncronization
-### Defenition   
-Source Time = start time of a syncronization, to have same block numbers while replication  
-Master Block = contains a tree with multiple blocks + root hash + min + max   
-Tree = a merkle tree structure using blocks   
-Block = leaf node of a merkle tree might contain multiple records but only one hash   
-Replication = the service to replicate data, using 3 above   
-
-## Merkle Tree Structure
-Consider following rules:  
-- A record is a key-value pair of data
-- key-value pairs are immutable (data will not be edited)
-- One block contains a range of records    
-- Block hash is calculated based on records hashes   
-- A block hash is a leaf in merkle tree   
-To make 2 nodes synced, we need to make sure both have the same data. To do that we need to compare data in both nodes periodically. To do the comparison, the simple solution is to hash each record and send keys from the first node to the next node and return the missing/additional keys to be transfered later. In situations with large amount of records, this is not an optimized way. So we use Blocks. Each block contains multiple key-value records. Now we can transfer hash of the blocks instead of keys. But still the same issue. How many blocks shall we support? What if we have a large amount of blocks? How many records each block should have? And more importantly how both nodes know how to make blocks with exactly same records? Do we need to send the ranges(min-max) of the hashes for each block?   
-What we do, is to make blocks in dynamic size. Considering the insertion timestamp of each record we can calculate a logarithmic block number.   
-
-By using record's creation timestamp, we make a dynamic sized blocks to make merkle trees. First block can contain a few records with the short lifetime, as the block number increases the number of records in block increases. Using the following simple math it's possible to detect the block number out of creation timestamp:  
-```
-SourceTime := time.Now()
-lifetime := SourceTime - creation timestamp of a record
-blocknumber = round(log2(record lifetime))
-```   
-
-This will return an integer as we use that as block index or block number.  
-By this way, all new records will go to the head blocks and old data will remain in the old block number. So we would have less block movement for old data.  
-
-
-## Master Block
-Each Master Block contains one merkle tree of smaller blocks (leafs). Number of MasterBlocks is exactly the same as number of replications we want in the application.  
-e.g.   
-Imagine we have 5 nodes: a,b,c,d,e  
-We want to have 3 copy of data in different nodes. Sync starts in node c. To make 3 replicas possible, Node c must create 2 master block with data between (a and b] and (b and c] to send them to successor node d.   
-MasterBlock1 = (a and b]   
-MasterBlock2 = (b and c]   
-In situations like node failure, master block will be helpful to easily detect the missing data in successor. In this scenario, if node d fails, syncronization process will start between node c and node e. As node e has already received data (b and c] from node d, so the only part which should be added to node e, is (a and b]. This is why we are using Master Blocks.  
-
-
-### Storing on remote node
-Whenever a node wants to store a record in successor regarding the different merkle trees, after receiving a record by successor, it recalculates the hash of that block and send back to predecessor, if predecessor finds out that block hash is the same as local block hash, then skips the rest of the data to be stored on successor otherwise it will continue until receives a correct block hash from successor.   
-To achieve this, the node must send records ordered by creation timestamp, cause newer records have high probability in case of missing in the successor node.  
+### Storing on the remote node
+In order to store data in the network, the source node needs to calculate the hash of data and calls Store method of the hash's successor node. The new node will store data if the local calculation of the data is in range (predecessor, new node] 
 
 ### Join initial download
-Whenever a node joins to the network, it must connect to the successor and immediatly downoalds the range of data between predecessor and new node (data E (predecessor, node]) from the successor. After downloading and storing this range of data, node can be considered as joint node in ring hash.   
-- node n makes merkle trees with local database  
-.  
-.  
-.  
-should be completed  
+Whenever a node joins the network, it must connect to the successor and immediately downloads the range of data between predecessor and new node (data E (predecessor, node]) from the successor. After downloading and storing this range of data, the node can be considered as a joint node in ring hash.   
 
-# Migration
-- node n makes merkle trees with local database  
-- node n sends roothashes+treeranges+sourcetime to node s  
-- node s makes merkle trees with local database  
-- node s receives n's roothashes and compares with local ones  
-- if diff found, it sends back all leafs sorted (block hashes) to node n  
-- node n sorts local leafs (block hashes) and compares one by one (queue workers)  
-- for each diff, node n extracts records of that block, sorts, and starting from newest one, sends to node s  
-- node s receives new data and stores in db, recalculate that block hash and returns back to node n  
-- node n checks if new block hash received from node s is matched with local block hash, will skip this block, otherwise will continue sending data  
-**NOTE** stream - stream grpc connection with queue workers  
-- 
+### Sync data
+In order to sync data with node A and its successors (B, C, D), it depends on the number of replication we need in the network. Currently, we have 2 replicas of each data. There is another document (REPLICATION.md) that is a more complex and efficient way of implementing this, but for now, we keep this as simple as possible.   
+
+Node A fetches data from the local database with range scan (predecessor, node A]. This range needs to be transferred to the successor to make a replica. But we can't transfer all data all the time. So node A makes a root hash of all the data in that range. Then sends this root hash and the range's first/last identifiers (predecessor, node A) to the successor. Successor fetches given range from the database, makes a new root hash, compares with the given root hash, if it's the same it will return nil, otherwise it will send back all the data it has to the predecessor (node A).   
+Node A receives the response and checks data record by record to see what data is missing in local and what data is missing in the successor. Then it will store the missing data in the local and successor node. 
 
 
 
 # TODO
 -[] use https://github.com/grpc/grpc/blob/master/doc/health-checking.md instead of ping  
 -[] Virtual nodes   
--[] FIX: sometimes when a node fails, the predecessor of that node, updates it's successor to itself instead of picking next one from successor list!   
+-[] FIX: sometimes when a node fails, the predecessor of that node, updates its successor to itself instead of picking the next one from the successor list!   
 
 # Debug 
 ```
