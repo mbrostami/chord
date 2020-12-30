@@ -240,19 +240,20 @@ func (r *Ring) SyncData() error {
 
 	responseData := UnserializeData(jsonResponse)
 
+	// log.Infof("ring:SyncData received response: %v", responseData)
 	// store missing data in remote node
 	for id, record := range localData {
 		if responseData.GetRecord(id) == nil {
-			log.Infof("ring:SyncData store on remote node: %x", responseData.GetRecord(id))
-			r.successor.Store(record.Content)
+			// log.Infof("ring:SyncData store on remote node: %v", record.GetJson())
+			r.successor.Store(record.GetJson())
 		}
 	}
 
 	// store missing data in local node
 	for id, record := range responseData.GetRecords() {
 		if localData[id] == nil {
-			log.Infof("ring:SyncData store on local node: %x", localData[id])
-			r.Store(record.Content)
+			// log.Infof("ring:SyncData store on local node: %v", record.GetJson())
+			r.Store(record.GetJson())
 		}
 	}
 	// log.Infof("ring:SyncData different rows: %+v", rows)
@@ -293,7 +294,7 @@ func (r *Ring) Fetch(key [helpers.HashSize]byte) []byte {
 func (r *Ring) Store(jsonData []byte) bool {
 	record := &Record{}
 	json.Unmarshal(jsonData, &record)
-	log.Warnf("ring:store put %x", record.Hash())
+	log.Warnf("ring:store put %s", record.Content)
 	return r.dstore.PutRecord(*record)
 }
 
@@ -337,7 +338,7 @@ func (r *Ring) Verbose() {
 	for _, k := range sortedKeys {
 		var key [helpers.HashSize]byte
 		copy(key[:helpers.HashSize], []byte(k)[:helpers.HashSize])
-		log.Debugf("db: %s : %x", records[key].Content, records[key].Identifier)
+		log.Debugf("db: %s:%x", records[key].Content, records[key].Identifier)
 	}
 	log.Debugf("\n")
 }
