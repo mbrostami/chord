@@ -242,16 +242,16 @@ func (r *Ring) SyncData() error {
 
 	// store missing data in remote node
 	for id, record := range localData {
-		if responseData.Records[id] == nil {
-			// log.Infof("ring:SyncData store on remote node: %x", responseData.Records[id])
+		if responseData.GetRecord(id) == nil {
+			log.Infof("ring:SyncData store on remote node: %x", responseData.GetRecord(id))
 			r.successor.Store(record.Content)
 		}
 	}
 
 	// store missing data in local node
-	for id, record := range responseData.Records {
+	for id, record := range responseData.GetRecords() {
 		if localData[id] == nil {
-			// log.Infof("ring:SyncData store on local node: %x", localData[id])
+			log.Infof("ring:SyncData store on local node: %x", localData[id])
 			r.Store(record.Content)
 		}
 	}
