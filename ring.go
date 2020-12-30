@@ -3,10 +3,8 @@ package chord
 import (
 	"encoding/json"
 	"sort"
-	"time"
 
 	"github.com/mbrostami/chord/helpers"
-	"github.com/mbrostami/chord/tree"
 	log "github.com/sirupsen/logrus"
 )
 
@@ -35,7 +33,7 @@ func NewRing(localNode *Node, remoteSender RemoteNodeSenderInterface) RingInterf
 		predecessorList: predecessorList,
 		successor:       NewRemoteNode(localNode, remoteSender),
 		predecessor:     nil,
-		dstore:          NewDStore(string(localNode.Identifier[:])),
+		dstore:          NewDStore(localNode.GetFullAddress()),
 	}
 	return ring
 }
@@ -195,13 +193,15 @@ func (r *Ring) SyncData() error {
 	}
 	replicas := 2
 	lastPredIndex := replicas - 2
+
+	// in order to sync data with successor, we should know about predecessors first
 	if r.predecessorList.Nodes[lastPredIndex] == nil {
 		log.Debug("ring:SyncData predecessors are not enough")
 		return nil
 	}
 	// log.Debug("ring:SyncData strated")
-	sourceTime := time.Now()
 
+	// Make range of data that needs to be synced based on predecessors
 	ranges := make(map[int][helpers.HashSize]byte)
 	ranges[0] = r.localNode.Identifier
 	lastIndex := 0
@@ -215,76 +215,80 @@ func (r *Ring) SyncData() error {
 			continue
 		}
 	}
-	replication := NewReplication(sourceTime, ranges, replicas)
 	// if replica is 2, we only need first predecessor to current node range of data
-	allKeysInRange := r.dstore.GetRangeCircular(ranges[lastIndex], ranges[0])
-	log.Infof("ring:SyncData db range got %d from %x to %x", len(allKeysInRange), ranges[lastPredIndex+1], ranges[0])
-	if allKeysInRange == nil {
+	localData, rootHash := r.dstore.GetRangeCircular(ranges[lastIndex], ranges[0])
+	log.Infof("ring:SyncData db range got %d from %x to %x", len(localData), ranges[lastIndex], ranges[0])
+	if localData == nil {
 		log.Infof("ring:SyncData there is no data to replicate")
 		return nil
 	}
-	// sort data and make merkle tree
-	err := replication.MakeTreesWithData(allKeysInRange)
-	if err != nil {
-		log.Errorf("ring:SyncData can not make tree: %v", err)
-		return err
-	}
-	jsonRequest, _ := BasicSerialize(replication)
+	// log.Infof("ring:SyncData root hash: %x", rootHash)
+	d := NewData(nil, ranges, rootHash)
+	jsonRequest, err := SerializeData(d)
+
+	log.Infof("ring:SyncData sending: %v, %v", d, err)
 	jsonResponse, err := r.successor.GlobalMaintenance(jsonRequest)
+
 	if err != nil {
 		log.Errorf("ring:SyncData error in remote global maintenance: %v", err)
 		return err
 	}
 	if jsonResponse == nil {
-		// log.Info("ring:SyncData everything is synced")
-		// everything is synced
+		log.Info("ring:SyncData data is already synced!")
 		return nil
 	}
-	diffs := Unserialize(jsonResponse)
-	rows, _ := replication.FindMissingData(diffs)
-	duplicates := make(map[[helpers.HashSize]byte]*tree.Row)
-	for i := 0; i < len(rows); i++ {
-		if duplicates[rows[i].Hash] != nil {
-			// skip duplicates
-			continue
+
+	responseData := UnserializeData(jsonResponse)
+
+	// store missing data in remote node
+	for id, record := range localData {
+		if responseData.Records[id] == nil {
+			// log.Infof("ring:SyncData store on remote node: %x", responseData.Records[id])
+			r.successor.Store(record.Content)
 		}
-		duplicates[rows[i].Hash] = rows[i]
-		// store missing data in remote node
-		// log.Infof("ring:SyncData store on remote node: %x", rows[i].Hash)
-		// Sort rows when making tree, cause we might have different orders so different root hash
-		r.successor.Store(rows[i].Content)
+	}
+
+	// store missing data in local node
+	for id, record := range responseData.Records {
+		if localData[id] == nil {
+			// log.Infof("ring:SyncData store on local node: %x", localData[id])
+			r.Store(record.Content)
+		}
 	}
 	// log.Infof("ring:SyncData different rows: %+v", rows)
 	return nil
 }
 
+// GlobalMaintenance gets data information from predecessor to sync missing data
 func (r *Ring) GlobalMaintenance(jsonData []byte) ([]byte, error) {
 	replicas := 2
 	lastPredIndex := replicas - 1
-	// log.Debug("ring:GlobalMaintenance strated")
-	basicTranport := BasicUnserialize(jsonData)
-	ranges := basicTranport.Ranges // use received ranges
-	replication := NewReplication(basicTranport.SourceTime, basicTranport.Ranges, replicas)
+	data := UnserializeData(jsonData)
+	log.Debugf("ring:GlobalMaintenance strated %v", string(jsonData))
+
+	ranges := data.Ranges // use received ranges
 	// if replica is 2, we only need second predecessor to predecessor range of data
-	allKeysInRange := r.dstore.GetRangeCircular(ranges[lastPredIndex], ranges[0])
+	allKeysInRange, rootHash := r.dstore.GetRangeCircular(ranges[lastPredIndex], ranges[0])
 	// log.Infof("ring:GlobalMaintenance db range got %d from %x to %x", len(allKeysInRange), ranges[lastPredIndex], ranges[0])
 	if allKeysInRange == nil {
-		// log.Infof("ring:GlobalMaintenance there is no data to make tree")
+		// log.Infof("ring:GlobalMaintenance there is no data to make hash")
 		return nil, nil
 	}
-	err := replication.MakeTreesWithData(allKeysInRange)
-	if err != nil {
-		log.Errorf("ring:GlobalMaintenance can not make tree: %v", err)
-		return nil, err
+	// if new root hash is the same as roothash in json data, means data is already synced
+	if helpers.Equal(rootHash, data.RootHash) {
+		return nil, nil
 	}
-	return replication.FindDiffs(*basicTranport)
+
+	newData := NewData(allKeysInRange, ranges, rootHash)
+	return SerializeData(newData)
 }
 
 func (r *Ring) Fetch(key [helpers.HashSize]byte) []byte {
 	return r.dstore.Get(key)
 }
 
-// Store store data + make merkle tree
+// Store store data
+// @todo replicate to the successor (required replications)
 // ref E.3
 func (r *Ring) Store(jsonData []byte) bool {
 	record := &Record{}
@@ -307,19 +311,19 @@ func (r *Ring) GetPredecessor(caller *RemoteNode) *RemoteNode {
 // Verbose prints successor,predecessor
 // Runs periodically
 func (r *Ring) Verbose() {
-	log.Debugf("Current Node: %s:%d:%x", r.localNode.IP, r.localNode.Port, r.localNode.Identifier)
-	if r.successor != nil {
-		log.Debugf("Current Node Successor: %s:%d:%x\n", r.successor.IP, r.successor.Port, r.successor.Identifier)
-	}
+	// log.Debugf("Current Node: %s:%d:%x", r.localNode.IP, r.localNode.Port, r.localNode.Identifier)
+	// if r.successor != nil {
+	// 	log.Debugf("Current Node Successor: %s:%d:%x\n", r.successor.IP, r.successor.Port, r.successor.Identifier)
+	// }
 	// if r.predecessor != nil {
 	// log.Debugf("Current Node Predecessor: %s:%d:%x\n", r.predecessor.IP, r.predecessor.Port, r.predecessor.Identifier)
 	// }
-	for i := 0; i < len(r.successorList.Nodes); i++ {
-		log.Debugf("successorList %d: %x\n", i, r.successorList.Nodes[i].Identifier)
-	}
-	for i := 0; i < len(r.predecessorList.Nodes); i++ {
-		log.Debugf("predecessorList %d: %x\n", i, r.predecessorList.Nodes[i].Identifier)
-	}
+	// for i := 0; i < len(r.successorList.Nodes); i++ {
+	// 	log.Debugf("successorList %d: %x\n", i, r.successorList.Nodes[i].Identifier)
+	// }
+	// for i := 0; i < len(r.predecessorList.Nodes); i++ {
+	// 	log.Debugf("predecessorList %d: %x\n", i, r.predecessorList.Nodes[i].Identifier)
+	// }
 	// for i := 1; i < len(r.fingerTable.Table); i++ {
 	// 	log.Debugf("FingerTable %d: %x\n", i, r.fingerTable.Table[i].Identifier)
 	// }
@@ -333,7 +337,7 @@ func (r *Ring) Verbose() {
 	for _, k := range sortedKeys {
 		var key [helpers.HashSize]byte
 		copy(key[:helpers.HashSize], []byte(k)[:helpers.HashSize])
-		log.Debugf("db: %x\n", records[key].Hash())
+		log.Debugf("db: %s : %x", records[key].Content, records[key].Identifier)
 	}
-	// log.Debugf("\n")
+	log.Debugf("\n")
 }

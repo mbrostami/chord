@@ -2,7 +2,6 @@ package main
 
 import (
 	"bufio"
-	"encoding/json"
 	"flag"
 	"fmt"
 	"os"
@@ -72,40 +71,30 @@ func main() {
 	}()
 	go func() {
 		for {
-			chordRing.Verbose()
-			time.Sleep(5 * time.Second)
-		}
-	}()
-	go func() {
-		for {
 			chordRing.SyncData()
 			time.Sleep(10 * time.Second)
 		}
 	}()
+	log.Debugf("Current Node: %x", chordRing.GetLocalNode().Identifier)
+	go func() {
+		for {
+			chordRing.Verbose()
+			time.Sleep(5 * time.Second)
+		}
+	}()
 	if *port != 0 {
 		reader := bufio.NewReader(os.Stdin)
-		fmt.Print("Enter your username: ")
-		username, _ := reader.ReadString('\n')
-		record := &chord.Record{
-			CreationTime: time.Now(),
-			Content:      []byte("@" + username),
-			Identifier:   helpers.Hash("@" + username),
-		}
-		remoteNodeToStore := chordRing.FindSuccessor(record.Hash())
-		remoteNodeToStore.Store(record.GetJson())
 		for {
-			fmt.Print("Find username: ")
-			rusername, _ := reader.ReadString('\n')
-			storerNode := chordRing.FindSuccessor(helpers.Hash("@" + rusername))
-			fmt.Printf("key %x successor %x\n", helpers.Hash("@"+rusername), storerNode.Identifier)
-			value := storerNode.Fetch(helpers.Hash("@" + rusername))
-			if value == nil {
-				fmt.Print("key doesn't exist\n")
-			} else {
-				var record chord.Record
-				json.Unmarshal(value, &record)
-				fmt.Printf("value reatrive %s, %s, %x\n", record.CreationTime, string(record.Content), record.Identifier)
+			log.Debugf("Current Node: %x", chordRing.GetLocalNode().Identifier)
+			fmt.Print("Enter value to store: ")
+			username, _ := reader.ReadString('\n')
+			record := &chord.Record{
+				CreationTime: time.Now(),
+				Content:      []byte(username),
+				Identifier:   helpers.Hash(username),
 			}
+			remoteNodeToStore := chordRing.FindSuccessor(record.Hash())
+			remoteNodeToStore.Store(record.GetJson())
 		}
 	}
 

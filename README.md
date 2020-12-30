@@ -37,12 +37,39 @@ By this way, all new records will go to the head blocks and old data will remain
 
 ## Master Block
 Each Master Block contains one merkle tree of smaller blocks (leafs). Number of MasterBlocks is exactly the same as number of replications we want in the application.  
-e.g.  
+e.g.   
 Imagine we have 5 nodes: a,b,c,d,e  
 We want to have 3 copy of data in different nodes. Sync starts in node c. To make 3 replicas possible, Node c must create 2 master block with data between (a and b] and (b and c] to send them to successor node d.   
 MasterBlock1 = (a and b]   
 MasterBlock2 = (b and c]   
 In situations like node failure, master block will be helpful to easily detect the missing data in successor. In this scenario, if node d fails, syncronization process will start between node c and node e. As node e has already received data (b and c] from node d, so the only part which should be added to node e, is (a and b]. This is why we are using Master Blocks.  
+
+
+### Storing on remote node
+Whenever a node wants to store a record in successor regarding the different merkle trees, after receiving a record by successor, it recalculates the hash of that block and send back to predecessor, if predecessor finds out that block hash is the same as local block hash, then skips the rest of the data to be stored on successor otherwise it will continue until receives a correct block hash from successor.   
+To achieve this, the node must send records ordered by creation timestamp, cause newer records have high probability in case of missing in the successor node.  
+
+### Join initial download
+Whenever a node joins to the network, it must connect to the successor and immediatly downoalds the range of data between predecessor and new node (data E (predecessor, node]) from the successor. After downloading and storing this range of data, node can be considered as joint node in ring hash.   
+- node n makes merkle trees with local database  
+.  
+.  
+.  
+should be completed  
+
+# Migration
+- node n makes merkle trees with local database  
+- node n sends roothashes+treeranges+sourcetime to node s  
+- node s makes merkle trees with local database  
+- node s receives n's roothashes and compares with local ones  
+- if diff found, it sends back all leafs sorted (block hashes) to node n  
+- node n sorts local leafs (block hashes) and compares one by one (queue workers)  
+- for each diff, node n extracts records of that block, sorts, and starting from newest one, sends to node s  
+- node s receives new data and stores in db, recalculate that block hash and returns back to node n  
+- node n checks if new block hash received from node s is matched with local block hash, will skip this block, otherwise will continue sending data  
+**NOTE** stream - stream grpc connection with queue workers  
+- 
+
 
 
 # TODO

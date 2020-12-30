@@ -21,7 +21,7 @@ type DStore struct {
 }
 
 func NewDStore(uniqueID string) *DStore {
-	uniqueID = string(time.Now().Second())
+	//uniqueID = string(time.Now().Second())
 	db, err := bolt.Open("/tmp/chord_"+uniqueID, 0600, nil)
 	if err != nil {
 		log.Fatal(err)
@@ -103,8 +103,9 @@ func (d *DStore) GetRange(fromKey [helpers.HashSize]byte, toKey [helpers.HashSiz
 	return data
 }
 
-func (d *DStore) GetRangeCircular(fromKey [helpers.HashSize]byte, toKey [helpers.HashSize]byte) map[[helpers.HashSize]byte]*Record {
+func (d *DStore) GetRangeCircular(fromKey [helpers.HashSize]byte, toKey [helpers.HashSize]byte) (map[[helpers.HashSize]byte]*Record, [helpers.HashSize]byte) {
 	data := make(map[[helpers.HashSize]byte]*Record)
+	var rootHash [helpers.HashSize]byte
 	d.database.View(func(tx *bolt.Tx) error {
 		// Assume our events bucket exists and has RFC3339 encoded time keys.
 		c := tx.Bucket([]byte(bucket)).Cursor()
@@ -121,6 +122,7 @@ func (d *DStore) GetRangeCircular(fromKey [helpers.HashSize]byte, toKey [helpers
 				copy(key[:helpers.HashSize], k[:helpers.HashSize])
 				record := Record{}
 				json.Unmarshal(value, &record)
+				rootHash = helpers.Hash(string(append(rootHash[:], record.Identifier[:]...)))
 				data[key] = &record
 			}
 			// return all keys greater than max
@@ -129,6 +131,7 @@ func (d *DStore) GetRangeCircular(fromKey [helpers.HashSize]byte, toKey [helpers
 				copy(key[:helpers.HashSize], k[:helpers.HashSize])
 				record := Record{}
 				json.Unmarshal(value, &record)
+				rootHash = helpers.Hash(string(append(rootHash[:], record.Identifier[:]...)))
 				data[key] = &record
 			}
 		} else {
@@ -137,12 +140,13 @@ func (d *DStore) GetRangeCircular(fromKey [helpers.HashSize]byte, toKey [helpers
 				copy(key[:helpers.HashSize], k[:helpers.HashSize])
 				record := Record{}
 				json.Unmarshal(value, &record)
+				rootHash = helpers.Hash(string(append(rootHash[:], record.Identifier[:]...)))
 				data[key] = &record
 			}
 		}
 		return nil
 	})
-	return data
+	return data, rootHash
 }
 
 func (d *DStore) Get(key [helpers.HashSize]byte) []byte {
